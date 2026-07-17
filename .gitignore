@@ -41,3 +41,6 @@ prisma/dev.db-journal
 # editor
 .vscode
 .idea
+test.pdf
+test_book.pdf
+scripts/
