@@ -1,0 +1,64 @@
+// Prisma schema for the school digital library — TEMPORARILY switched to
+// SQLite for offline testing of the PDF reader. Postgres schema preserved in
+// /tmp/prisma.postgres.bak on this machine.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Enums were replaced by String columns because SQLite doesn't support
+// Prisma's `enum` keyword. The runtime `Library` and `Role` constants +
+// matching TypeScript types live in src/types/index.ts.
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String
+  classGrade   Int?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  uploadedBooks   Book[]            @relation("UploadedBy")
+  readingProgress ReadingProgress[]
+}
+
+model Book {
+  id            String   @id @default(cuid())
+  title         String
+  author        String
+  synopsis      String
+  subject       String
+  coverImageKey String?
+  pdfKey        String?
+  epubKey       String?
+  library       String
+  uploadedById  String
+  uploadedBy    User     @relation("UploadedBy", fields: [uploadedById], references: [id])
+  createdAt     DateTime @default(now())
+
+  readingProgress ReadingProgress[]
+
+  @@index([library])
+  @@index([title])
+  @@index([author])
+}
+
+model ReadingProgress {
+  id           String   @id @default(cuid())
+  userId       String
+  bookId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book         Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  lastLocation String
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, bookId])
+  @@index([userId])
+}

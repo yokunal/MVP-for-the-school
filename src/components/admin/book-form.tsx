@@ -1,0 +1,429 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import { useToast } from "@/components/ui/toast";
+import { Upload, Loader2 } from "lucide-react";
+import { ALL_LIBRARIES, LIBRARY_LABELS, type Library } from "@/types";
+
+type Mode = "create" | "edit";
+type Format = "pdf" | "epub" | "both" | "none";
+
+type BookInitial = {
+  id: string;
+  title: string;
+  author: string;
+  subject: string;
+  synopsis: string;
+  library: Library;
+  hasPdf: boolean;
+  hasEpub: boolean;
+  hasCover: boolean;
+};
+
+const MAX_FILE_BYTES = 200 * 1024 * 1024; // 200 MB cap
+
+export function BookForm({
+  mode,
+  initial,
+}: {
+  mode: Mode;
+  initial?: BookInitial;
+}): React.ReactElement {
+  const router = useRouter();
+  const { push } = useToast();
+
+  const [library, setLibrary] = useState<Library>(initial?.library ?? "GENERAL");
+  const [file, setFile] = useState<File | null>(null);
+  const [format, setFormat] = useState<Format>(
+    initial
+      ? initial.hasPdf && initial.hasEpub
+        ? "both"
+        : initial.hasPdf
+          ? "pdf"
+          : initial.hasEpub
+            ? "epub"
+            : "none"
+      : "pdf"
+  );
+  const [cover, setCover] = useState<File | null>(null);
+
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [author, setAuthor] = useState(initial?.author ?? "");
+  const [subject, setSubject] = useState(initial?.subject ?? "");
+  const [synopsis, setSynopsis] = useState(initial?.synopsis ?? "");
+
+  const [step, setStep] = useState<"form" | "uploading" | "done">("form");
+  const [progress, setProgress] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function validate(): Promise<string | null> {
+    if (!title.trim() || !author.trim() || !subject.trim() || !synopsis.trim()) {
+      return "Title, author, subject, and synopsis are all required.";
+    }
+    if (mode === "create") {
+      if (format === "none") return "Select at least one format.";
+      if ((format === "pdf" || format === "both") && !file) {
+        return "Pick a PDF file or change the format.";
+      }
+      if ((format === "epub" || format === "both") && !file) {
+        return "Pick an EPUB file or change the format.";
+      }
+      if (format === "both") {
+        if (!file) return "Pick the book file (PDF + EPUB share this slot in v1).";
+      }
+      if (file && file.size > MAX_FILE_BYTES) {
+        return `File is too large (max ${MAX_FILE_BYTES / 1024 / 1024} MB).`;
+      }
+      if (cover && cover.size > 10 * 1024 * 1024) {
+        return "Cover image must be 10 MB or smaller.";
+      }
+    }
+    if (cover && cover.size > 10 * 1024 * 1024) {
+      return "Cover image must be 10 MB or smaller.";
+    }
+    return null;
+  }
+
+  async function presignAndPut(fileToUpload: File, kind: "pdf" | "epub" | "cover"): Promise<string> {
+    setProgress(`Requesting upload URL for ${kind}…`);
+    let sigRes: Response;
+    try {
+      sigRes = await fetch("/api/admin/books/upload-url", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          kind,
+          filename: fileToUpload.name,
+          contentType: fileToUpload.type || "application/octet-stream",
+        }),
+      });
+    } catch (e) {
+      throw new Error(`Network error requesting upload URL: ${(e as Error).message}`);
+    }
+
+    let sigBody: string;
+    try {
+      sigBody = await sigRes.text();
+      const sig = JSON.parse(sigBody) as { url?: string; key?: string; error?: string };
+      if (!sigRes.ok || !sig.key) {
+        throw new Error(sig.error || `Server returned ${sigRes.status}`);
+      }
+
+      if (sig.url && sig.url.startsWith("local-mode://")) {
+        setProgress(`Saving ${kind} locally…`);
+        const fd = new FormData();
+        fd.set("key", sig.key);
+        fd.set("file", fileToUpload);
+        let upRes: Response;
+        try {
+          upRes = await fetch("/api/local/upload", {
+            method: "POST",
+            body: fd,
+          });
+        } catch (e) {
+          throw new Error(`Network error uploading ${kind}: ${(e as Error).message}`);
+        }
+        const upBody = await upRes.text();
+        let up: { error?: string };
+        try {
+          up = JSON.parse(upBody);
+        } catch {
+          throw new Error(`Local upload failed (HTTP ${upRes.status}): unexpected response`);
+        }
+        if (!upRes.ok) {
+          throw new Error(up.error || `Local upload failed (${upRes.status})`);
+        }
+        return sig.key;
+      }
+
+      if (!sig.url) {
+        throw new Error("Upload URL not provided");
+      }
+      setProgress(`Uploading ${kind}…`);
+      const putRes = await fetch(sig.url, {
+        method: "PUT",
+        headers: { "content-type": fileToUpload.type || "application/octet-stream" },
+        body: fileToUpload,
+      });
+      if (!putRes.ok) {
+        throw new Error(`R2 upload failed (${putRes.status})`);
+      }
+      return sig.key;
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      throw new Error(`${kind} upload: unexpected error (HTTP ${sigRes.status})`);
+    }
+  }
+
+  async function onSubmit(e: React.FormEvent): Promise<void> {
+    e.preventDefault();
+    setError(null);
+    const err = await validate();
+    if (err) {
+      setError(err);
+      return;
+    }
+    setStep("uploading");
+    try {
+      let pdfKey: string | null = null;
+      let epubKey: string | null = null;
+      let coverImageKey: string | null = null;
+
+      if (mode === "create") {
+        if (format === "pdf" || format === "both") {
+          if (!file) throw new Error("PDF file is required");
+          pdfKey = await presignAndPut(file, "pdf");
+        }
+        if (format === "epub" || format === "both") {
+          if (!file) throw new Error("EPUB file is required");
+          epubKey = await presignAndPut(file, "epub");
+        }
+        if (cover) {
+          coverImageKey = await presignAndPut(cover, "cover");
+        }
+        const createRes = await fetch("/api/admin/books", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            title,
+            author,
+            subject,
+            synopsis,
+            library,
+            pdfKey,
+            epubKey,
+            coverImageKey,
+          }),
+        });
+        const createBody = await createRes.text();
+        let created: { id?: string; error?: string };
+        try { created = JSON.parse(createBody); } catch { created = {}; }
+        if (!createRes.ok || !created.id) {
+          throw new Error(created.error || `Could not save book (HTTP ${createRes.status})`);
+        }
+        push({ title: "Book uploaded", description: title, variant: "default" });
+        router.push("/admin/books");
+        router.refresh();
+      } else {
+        // Edit mode: keep existing keys, swap cover if a new one is uploaded.
+        if (cover) {
+          coverImageKey = await presignAndPut(cover, "cover");
+        }
+        const patchRes = await fetch(
+          `/api/admin/books/${initial!.id}`,
+          {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              title,
+              author,
+              subject,
+              synopsis,
+              library,
+              ...(coverImageKey ? { coverImageKey } : {}),
+            }),
+          }
+        );
+        const patchBody = await patchRes.text();
+        let result: { ok?: boolean; error?: string };
+        try { result = JSON.parse(patchBody); } catch { result = {}; }
+        if (!patchRes.ok || !result.ok) {
+          throw new Error(result.error || `Could not update book (HTTP ${patchRes.status})`);
+        }
+        push({ title: "Book updated", description: title });
+        router.push("/admin/books");
+        router.refresh();
+      }
+      setStep("done");
+    } catch (e) {
+      setStep("form");
+      setError((e as Error).message);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-6">
+      {/* 1. Library */}
+      <Card>
+        <CardHeader>
+          <CardTitle>1 · Library</CardTitle>
+          <CardDescription>Which library should this book live in?</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Select value={library} onValueChange={(v) => setLibrary(v as Library)}>
+            <SelectTrigger className="sm:w-72">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ALL_LIBRARIES.map((l) => (
+                <SelectItem key={l} value={l}>
+                  {LIBRARY_LABELS[l]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      {/* 2. Upload file */}
+      {mode === "create" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>2 · File</CardTitle>
+            <CardDescription>
+              Pick the actual book file (PDF or EPUB). Max 200 MB.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Input
+              type="file"
+              accept=".pdf,.epub,application/pdf,application/epub+zip"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+            {file && (
+              <p className="text-xs text-muted-foreground">
+                {file.name} ({(file.size / 1024 / 1024).toFixed(1)} MB)
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 3. Format */}
+      {mode === "create" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>3 · Format</CardTitle>
+            <CardDescription>
+              Is this a PDF, an EPUB, or both?
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Select value={format} onValueChange={(v) => setFormat(v as Format)}>
+              <SelectTrigger className="sm:w-72">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pdf">PDF only</SelectItem>
+                <SelectItem value="epub">EPUB only</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {format === "pdf"
+                ? "The uploaded file must be a PDF."
+                : "The uploaded file must be an EPUB."}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 4. Metadata */}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            4 · {mode === "create" ? "Book details" : "Edit details"}
+          </CardTitle>
+          <CardDescription>Title, author, subject, and a short synopsis.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="title">Title</Label>
+              <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="author">Author / Writer</Label>
+              <Input id="author" value={author} onChange={(e) => setAuthor(e.target.value)} required />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="subject">Subject</Label>
+            <Input
+              id="subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Math, English Literature, Physics…"
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="synopsis">Synopsis</Label>
+            <Textarea
+              id="synopsis"
+              rows={5}
+              value={synopsis}
+              onChange={(e) => setSynopsis(e.target.value)}
+              required
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 5. Cover */}
+      <Card>
+        <CardHeader>
+          <CardTitle>5 · Cover image (optional)</CardTitle>
+          <CardDescription>
+            {mode === "create"
+              ? "JPG/PNG/WebP, max 10 MB. Leave blank to skip."
+              : "Upload to replace the existing cover. Leave blank to keep it."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            onChange={(e) => setCover(e.target.files?.[0] ?? null)}
+          />
+          {cover && (
+            <p className="text-xs text-muted-foreground">
+              {cover.name} ({(cover.size / 1024 / 1024).toFixed(1)} MB)
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {error && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {step === "uploading" && (
+        <div className="rounded-md border bg-muted px-3 py-2 text-sm">
+          <Loader2 className="mr-2 inline h-4 w-4 animate-spin" /> {progress}
+        </div>
+      )}
+
+      {/* 6. Submit */}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={() => router.push("/admin/books")}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={step === "uploading"}>
+          <Upload className="h-4 w-4" />
+          {mode === "create" ? "Upload book" : "Save changes"}
+        </Button>
+      </div>
+    </form>
+  );
+}
