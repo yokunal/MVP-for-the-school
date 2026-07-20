@@ -13,7 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ALL_LIBRARIES, LIBRARY_LABELS, type Library as LibEnum } from "@/types";
 import { isLibraryEnum } from "@/lib/csv";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Upload } from "lucide-react";
 import { DeleteBookButton } from "@/components/admin/delete-book-button";
 
 export default async function AdminBooksPage({
@@ -49,11 +49,18 @@ export default async function AdminBooksPage({
     <main className="container space-y-6 py-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">Books</h1>
-        <Button asChild>
-          <Link href="/admin/books/new">
-            <Plus className="h-4 w-4" /> New book
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/admin/books/bulk">
+              <Upload className="h-4 w-4" /> Bulk upload
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/admin/books/new">
+              <Plus className="h-4 w-4" /> New book
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <form className="flex flex-wrap items-center gap-2" method="get">

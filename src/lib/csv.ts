@@ -9,14 +9,54 @@ import type { Role, Library } from "@/types";
  * Columns expected: name, email, role, class
  *   - name:  required string
  *   - email: required, valid email, no duplicates within the file
- *   - role:  ADMIN | TEACHER | STUDENT
+ *   - role:  ADMIN | TEACHER | STUDENT (aliases like "pupil"/"staff" auto-mapped)
  *   - class: required only for STUDENT (must be 6..12)
  */
 
+// ---------------------------------------------------------------------------
+// Role alias mapping — matches common school-system export names
+// case-insensitively so non-technical staff don't need to guess enum values.
+// ---------------------------------------------------------------------------
+
+const ROLE_ALIASES: Record<string, string> = {
+  // English variants
+  pupil: "STUDENT",
+  student: "STUDENT",
+  students: "STUDENT",
+  staff: "TEACHER",
+  teacher: "TEACHER",
+  teachers: "TEACHER",
+  admin: "ADMIN",
+  administrator: "ADMIN",
+  // Portuguese (common in Brazilian school exports)
+  aluno: "STUDENT",
+  alunos: "STUDENT",
+  estudante: "STUDENT",
+  professor: "TEACHER",
+  professores: "TEACHER",
+  funcionario: "TEACHER",
+  funcionários: "TEACHER",
+  administrador: "ADMIN",
+};
+
+function normalizeRole(raw: string): string {
+  const key = raw.trim().toLowerCase();
+  return ROLE_ALIASES[key] ?? raw.trim().toUpperCase();
+}
+
 const baseRow = z.object({
-  name: z.string().trim().min(1, "name is required"),
-  email: z.string().trim().toLowerCase().email("invalid email"),
-  role: z.enum(["ADMIN", "TEACHER", "STUDENT"]),
+  name: z
+    .string()
+    .trim()
+    .min(1, { message: "name: required — column must not be empty" }),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email({ message: "email: invalid format — must be name@school" }),
+  role: z.enum(["ADMIN", "TEACHER", "STUDENT"], {
+    errorMap: () => ({ message: 'role: must be STUDENT, TEACHER, or ADMIN' }),
+  }),
   class: z.string().optional().default(""),
 });
 
@@ -56,6 +96,12 @@ export class CsvUserParser {
 
     const out: CsvPreviewRow[] = [];
     rawRows.forEach((row, idx) => {
+      // Normalise role before validation so school exports like "Pupil"/"Staff"
+      // are accepted without requiring the user to edit the CSV.
+      if (row.role) {
+        row.role = normalizeRole(row.role);
+      }
+
       const parsed = baseRow.safeParse(row);
       if (!parsed.success) {
         out.push({
@@ -72,20 +118,20 @@ export class CsvUserParser {
       const errors: string[] = [];
       const email = parsed.data.email;
       if ((emailCounts.get(email) ?? 0) > 1) {
-        errors.push("duplicate email in file");
+        errors.push(`email: duplicate in file (appears ${emailCounts.get(email)} times)`);
       }
       let classGrade: number | null = null;
       const classStr = parsed.data.class.trim();
       if (parsed.data.role === "STUDENT") {
         if (!classStr) {
-          errors.push("class is required for students");
+          errors.push("class: required for STUDENT role");
         } else if (!(classStr in CLASS_TO_LIBRARY)) {
-          errors.push("class must be 6..12");
+          errors.push(`class: must be 6–12 (got "${classStr}")`);
         } else {
           classGrade = parseInt(classStr, 10);
         }
       } else if (classStr) {
-        errors.push("class only applies to students");
+        errors.push("class: only applies to STUDENT role");
       }
       out.push({
         row: idx + 2,
