@@ -4,6 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Props = {
   bookId: string;
@@ -36,45 +44,35 @@ export function DeleteBookButton({ bookId, bookTitle }: Props): React.ReactEleme
   }
 
   return (
-    <>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="text-destructive hover:text-destructive"
-        onClick={() => setOpen(true)}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </Button>
-
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-sm rounded-lg bg-background p-6 shadow-xl">
-            <h3 className="mb-2 text-lg font-semibold">Delete book</h3>
-            <p className="mb-6 text-sm text-muted-foreground">
-              Are you sure? This cannot be undone.
-              <br />
-              <span className="font-medium text-foreground">{bookTitle}</span> will be
-              permanently removed.
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={() => setOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={busy}
-                onClick={handleDelete}
-              >
-                {busy ? "Deleting…" : "Delete"}
-              </Button>
-            </div>
-          </div>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-destructive hover:text-destructive"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete book</DialogTitle>
+          <DialogDescription>
+            Are you sure? This cannot be undone.
+            <br />
+            <span className="font-medium text-foreground">{bookTitle}</span> will be
+            permanently removed.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" disabled={busy} onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button variant="destructive" disabled={busy} onClick={handleDelete}>
+            {busy ? "Deleting…" : "Delete"}
+          </Button>
         </div>
-      )}
-    </>
+      </DialogContent>
+    </Dialog>
   );
 }
