@@ -87,8 +87,14 @@ export class InMemoryRateLimitStore implements RateLimitStore {
 
 export const loginRateLimiter = new InMemoryRateLimitStore(5, 15);
 
+/** Stricter rate limiter for change-password: 3 attempts per 5 min per user+IP. */
+export const changePasswordRateLimiter = new InMemoryRateLimitStore(3, 5);
+
 // Clean up expired entries every 5 minutes.
-setInterval(() => loginRateLimiter.cleanup(), 5 * 60 * 1000).unref();
+setInterval(() => {
+  loginRateLimiter.cleanup();
+  changePasswordRateLimiter.cleanup();
+}, 5 * 60 * 1000).unref();
 
 // -----------------------------------------------------------------------
 // Helper to extract client IP from a Next.js request-like object.

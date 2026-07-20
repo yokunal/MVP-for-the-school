@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { changePasswordRateLimiter } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -35,6 +36,16 @@ export async function POST(req: Request): Promise<NextResponse> {
     );
   }
 
+  // Rate limiting: max 3 wrong attempts per 5 min per user.
+  const rateKey = `change-pwd:${session.user.id}`;
+  const rateCheck = changePasswordRateLimiter.check(rateKey);
+  if (rateCheck.blocked) {
+    return NextResponse.json(
+      { error: `Too many attempts. Try again later.` },
+      { status: 429 }
+    );
+  }
+
   if (body.newPassword.length < 6) {
     return NextResponse.json(
       { error: "New password must be at least 6 characters" },
@@ -60,6 +71,7 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const valid = await bcrypt.compare(body.currentPassword, user.passwordHash);
   if (!valid) {
+    changePasswordRateLimiter.recordFailure(rateKey);
     return NextResponse.json(
       { error: "Current password is incorrect" },
       { status: 403 }
