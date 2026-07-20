@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { isLibraryEnum } from "@/lib/csv";
-import { deleteObject } from "@/lib/r2";
+import { deleteObject, validateStoredFileSignature } from "@/lib/r2";
 import { AuditLog } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +16,8 @@ const PatchBody = z.object({
   synopsis: z.string().trim().min(1).max(8000).optional(),
   library: z.string().refine(isLibraryEnum).optional(),
   coverImageKey: z.string().min(1).nullable().optional(),
+  pdfKey: z.string().min(1).nullable().optional(),
+  epubKey: z.string().min(1).nullable().optional(),
 });
 
 export async function PATCH(
@@ -43,26 +45,52 @@ export async function PATCH(
 
   const existing = await prisma.book.findUnique({
     where: { id: ctx.params.bookId },
-    select: { id: true },
+    select: { id: true, pdfKey: true, epubKey: true, coverImageKey: true },
   });
   if (!existing) {
     return NextResponse.json({ error: "Book not found" }, { status: 404 });
   }
 
+  // Validate magic bytes for any new file keys.
+  for (const field of ["pdfKey", "epubKey", "coverImageKey"] as const) {
+    const newKey = parsed.data[field];
+    if (newKey && newKey !== existing[field]) {
+      const sigError = await validateStoredFileSignature(newKey);
+      if (sigError) {
+        return NextResponse.json({ error: `${field}: ${sigError}` }, { status: 400 });
+      }
+    }
+  }
+
   try {
+    const updateData: Record<string, unknown> = {};
+    if (parsed.data.title !== undefined) updateData.title = parsed.data.title;
+    if (parsed.data.author !== undefined) updateData.author = parsed.data.author;
+    if (parsed.data.subject !== undefined) updateData.subject = parsed.data.subject;
+    if (parsed.data.synopsis !== undefined) updateData.synopsis = parsed.data.synopsis;
+    if (parsed.data.library !== undefined) updateData.library = parsed.data.library;
+    if (parsed.data.coverImageKey !== undefined) updateData.coverImageKey = parsed.data.coverImageKey;
+    if (parsed.data.pdfKey !== undefined) updateData.pdfKey = parsed.data.pdfKey;
+    if (parsed.data.epubKey !== undefined) updateData.epubKey = parsed.data.epubKey;
+
     await prisma.book.update({
       where: { id: ctx.params.bookId },
-      data: {
-        ...(parsed.data.title !== undefined && { title: parsed.data.title }),
-        ...(parsed.data.author !== undefined && { author: parsed.data.author }),
-        ...(parsed.data.subject !== undefined && { subject: parsed.data.subject }),
-        ...(parsed.data.synopsis !== undefined && { synopsis: parsed.data.synopsis }),
-        ...(parsed.data.library !== undefined && { library: parsed.data.library }),
-        ...(parsed.data.coverImageKey !== undefined && {
-          coverImageKey: parsed.data.coverImageKey,
-        }),
-      },
+      data: updateData,
     });
+
+    // Delete old file keys from storage if they were replaced (best-effort).
+    const oldKeysToDelete: (string | null | undefined)[] = [];
+    if (parsed.data.pdfKey !== undefined && parsed.data.pdfKey !== existing.pdfKey) {
+      oldKeysToDelete.push(existing.pdfKey);
+    }
+    if (parsed.data.epubKey !== undefined && parsed.data.epubKey !== existing.epubKey) {
+      oldKeysToDelete.push(existing.epubKey);
+    }
+    if (parsed.data.coverImageKey !== undefined && parsed.data.coverImageKey !== existing.coverImageKey) {
+      oldKeysToDelete.push(existing.coverImageKey);
+    }
+    await Promise.allSettled(oldKeysToDelete.map((k) => deleteObject(k)));
+
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

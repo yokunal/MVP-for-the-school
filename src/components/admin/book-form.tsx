@@ -226,9 +226,15 @@ export function BookForm({
         router.push("/admin/books");
         router.refresh();
       } else {
-        // Edit mode: keep existing keys, swap cover if a new one is uploaded.
+        // Edit mode: upload replacements if new files selected.
         if (cover) {
           coverImageKey = await presignAndPut(cover, "cover");
+        }
+        if (pdfFile) {
+          pdfKey = await presignAndPut(pdfFile, "pdf");
+        }
+        if (epubFile) {
+          epubKey = await presignAndPut(epubFile, "epub");
         }
         const patchRes = await fetch(
           `/api/admin/books/${initial!.id}`,
@@ -243,6 +249,8 @@ export function BookForm({
               library,
               ...(coverImageKey ? { coverImageKey } : {}),
               ...(removeCover && !coverImageKey ? { coverImageKey: null } : {}),
+              ...(pdfKey ? { pdfKey } : {}),
+              ...(epubKey ? { epubKey } : {}),
             }),
           }
         );
@@ -286,6 +294,55 @@ export function BookForm({
           </Select>
         </CardContent>
       </Card>
+
+      {/* Edit mode: replace book files */}
+      {mode === "edit" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>2 · Replace files (optional)</CardTitle>
+            <CardDescription>
+              Upload new PDF or EPUB to replace the current files. Leave blank to keep existing.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {initial?.hasPdf && (
+              <div>
+                <Label htmlFor="edit-pdf" className="text-xs text-muted-foreground">Replace PDF</Label>
+                <Input
+                  id="edit-pdf"
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
+                />
+                {pdfFile && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {pdfFile.name} ({(pdfFile.size / 1024 / 1024).toFixed(1)} MB)
+                  </p>
+                )}
+              </div>
+            )}
+            {initial?.hasEpub && (
+              <div>
+                <Label htmlFor="edit-epub" className="text-xs text-muted-foreground">Replace EPUB</Label>
+                <Input
+                  id="edit-epub"
+                  type="file"
+                  accept=".epub,application/epub+zip"
+                  onChange={(e) => setEpubFile(e.target.files?.[0] ?? null)}
+                />
+                {epubFile && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {epubFile.name} ({(epubFile.size / 1024 / 1024).toFixed(1)} MB)
+                  </p>
+                )}
+              </div>
+            )}
+            {!initial?.hasPdf && !initial?.hasEpub && (
+              <p className="text-xs text-muted-foreground">No files to replace — book has no PDF or EPUB.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* 2. Upload file */}
       {mode === "create" && (
@@ -377,7 +434,7 @@ export function BookForm({
       <Card>
         <CardHeader>
           <CardTitle>
-            4 · {mode === "create" ? "Book details" : "Edit details"}
+            {mode === "create" ? "4 · Book details" : "3 · Edit details"}
           </CardTitle>
           <CardDescription>Title, author, subject, and a short synopsis.</CardDescription>
         </CardHeader>
@@ -418,7 +475,7 @@ export function BookForm({
       {/* 5. Cover */}
       <Card>
         <CardHeader>
-          <CardTitle>5 · Cover image (optional)</CardTitle>
+          <CardTitle>{mode === "create" ? "5" : "4"} · Cover image (optional)</CardTitle>
           <CardDescription>
             {mode === "create"
               ? "JPG/PNG/WebP, max 10 MB. Leave blank to skip."
