@@ -71,8 +71,7 @@ export async function PATCH(
 
   // Write audit log for each changed field
   if (typeof body.isActive === "boolean") {
-    AuditLog.write(
-      sessionUser.id,
+    await AuditLog.write(  sessionUser.id,
       sessionUser.email,
       body.isActive ? "USER_REACTIVATED" : "USER_DEACTIVATED",
       { targetUserId: ctx.params.id }

@@ -84,7 +84,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     select: { id: true, email: true, name: true, role: true, classGrade: true },
   });
 
-  AuditLog.write(user.id, user.email, "USER_CREATED", {
+  await AuditLog.write(user.id, user.email, "USER_CREATED", {
     targetUserId: created.id,
     metadata: { name, role, classGrade },
   });

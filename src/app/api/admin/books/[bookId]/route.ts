@@ -110,7 +110,7 @@ export async function DELETE(
       deleteObject(book.epubKey),
       deleteObject(book.coverImageKey),
     ]);
-    AuditLog.write(user.id, user.email, "BOOK_DELETED", {
+    await AuditLog.write(user.id, user.email, "BOOK_DELETED", {
       targetBookId: book.id,
       metadata: { title: book.title },
     });

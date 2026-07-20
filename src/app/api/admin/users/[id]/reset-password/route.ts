@@ -41,7 +41,7 @@ export async function POST(
     },
   });
 
-  AuditLog.write(user.id, user.email, "PASSWORD_RESET", {
+  await AuditLog.write(user.id, user.email, "PASSWORD_RESET", {
     targetUserId: ctx.params.id,
   });
 

@@ -121,7 +121,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     {} as Record<string, number>
   );
 
-  AuditLog.write(user.id, user.email, "USER_BULK_IMPORTED", {
+  await AuditLog.write(user.id, user.email, "USER_BULK_IMPORTED", {
     metadata: { created: summary.created ?? 0, skipped: summary.skipped ?? 0, errors: summary.error ?? 0 },
   });
 
