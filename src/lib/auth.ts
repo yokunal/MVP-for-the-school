@@ -2,7 +2,7 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
-import { loginRateLimiter, extractIp } from "@/lib/rate-limit";
+import { loginRateLimiter, ipWideRateLimiter, extractIp } from "@/lib/rate-limit";
 import type { Role } from "@/types";
 
 // In-memory cache for JWT callback DB checks.
@@ -39,10 +39,12 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) return null;
 
         // Rate limiting: max 5 failed attempts per email+IP per 15 min.
+        // Secondary IP-wide limiter: max 20/15min per IP (shared-network safety).
         const ip = extractIp(req?.headers as Record<string, string | string[] | undefined> | undefined);
         const rateKey = `${credentials.email.toLowerCase().trim()}:${ip}`;
         const rateCheck = loginRateLimiter.check(rateKey);
-        if (rateCheck.blocked) {
+        const ipWideCheck = ipWideRateLimiter.check(ip);
+        if (rateCheck.blocked || ipWideCheck.blocked) {
           return null;
         }
 
@@ -53,6 +55,7 @@ export const authOptions: NextAuthOptions = {
         const ok = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!ok) {
           loginRateLimiter.recordFailure(rateKey);
+          ipWideRateLimiter.recordFailure(ip);
           return null;
         }
 

@@ -94,12 +94,25 @@ export class InMemoryRateLimitStore implements RateLimitStore {
 
 export const loginRateLimiter = new InMemoryRateLimitStore(5, 15);
 
+/**
+ * Secondary IP-wide rate limiter for shared-network scenarios.
+ *
+ * The primary limiter keys on `email:ip`, so each user behind a shared IP
+ * has their own 5-attempt budget. This secondary limiter keys on IP alone
+ * with a much higher threshold, preventing brute-force across many accounts
+ * from a single IP while avoiding false positives in a classroom setting.
+ *
+ * Threshold: 20 failed attempts per 15 min per IP.
+ */
+export const ipWideRateLimiter = new InMemoryRateLimitStore(20, 15);
+
 /** Stricter rate limiter for change-password: 3 attempts per 5 min per user+IP. */
 export const changePasswordRateLimiter = new InMemoryRateLimitStore(3, 5);
 
 // Clean up expired entries every 5 minutes.
 setInterval(() => {
   loginRateLimiter.cleanup();
+  ipWideRateLimiter.cleanup();
   changePasswordRateLimiter.cleanup();
 }, 5 * 60 * 1000).unref();
 

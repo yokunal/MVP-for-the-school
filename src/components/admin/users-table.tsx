@@ -45,9 +45,11 @@ export function UsersTable({
   const { push } = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
+  const [resetResult, setResetResult] = useState<string | null>(null);
 
   async function resetPassword(id: string): Promise<void> {
     setBusyId(id);
+    setResetResult(null);
     try {
       const res = await fetch(`/api/admin/users/${id}/reset-password`, { method: "POST" });
       const data = (await res.json()) as { tempPassword?: string; error?: string };
@@ -56,15 +58,11 @@ export function UsersTable({
         return;
       }
       if (data.tempPassword) {
-        await navigator.clipboard.writeText(data.tempPassword).catch(() => {});
-        push({
-          title: "New temp password (copied)",
-          description: data.tempPassword,
-        });
+        setResetResult(data.tempPassword);
+        push({ title: "Password reset created", description: "Copy the password below" });
       }
     } finally {
       setBusyId(null);
-      setResetTarget(null);
     }
   }
 
@@ -161,32 +159,71 @@ export function UsersTable({
     </Table>
 
     {/* Reset password confirmation dialog */}
-    <Dialog open={resetTarget !== null} onOpenChange={(o) => { if (!o) setResetTarget(null); }}>
+    <Dialog open={resetTarget !== null} onOpenChange={(o) => { if (!o) { setResetTarget(null); setResetResult(null); } }}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Reset password</DialogTitle>
-          <DialogDescription>
-            Reset password for <span className="font-medium text-foreground">{resetTarget?.name}</span>
-            {" "}({resetTarget?.email})? A new temporary password will be generated and
-            shown after confirmation.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setResetTarget(null)}>
-            Cancel
-          </Button>
-          <Button
-            variant="default"
-            disabled={busyId !== null}
-            onClick={() => {
-              const id = resetTarget?.id;
-              if (id) resetPassword(id);
-            }}
-          >
-            {busyId ? <RefreshCw className="mr-1 h-4 w-4 animate-spin" /> : <AlertTriangle className="mr-1 h-4 w-4" />}
-            Reset password
-          </Button>
-        </div>
+        {resetResult ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Password reset</DialogTitle>
+              <DialogDescription>
+                New temporary password for <span className="font-medium text-foreground">{resetTarget?.name}</span>.
+                Copy it now — it won't be shown again after this dialog closes.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="rounded-md border bg-muted px-4 py-3">
+                <p className="text-xs text-muted-foreground mb-1">Temporary password</p>
+                <p className="select-all font-mono text-lg font-bold tracking-wider text-foreground">
+                  {resetResult}
+                </p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="default"
+                  onClick={() => {
+                    navigator.clipboard.writeText(resetResult).catch(() => {});
+                    push({ title: "Copied to clipboard" });
+                  }}
+                >
+                  <Copy className="mr-1 h-4 w-4" /> Copy password
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => { setResetTarget(null); setResetResult(null); }}
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Reset password</DialogTitle>
+              <DialogDescription>
+                Reset password for <span className="font-medium text-foreground">{resetTarget?.name}</span>
+                {" "}({resetTarget?.email})? A new temporary password will be generated and
+                shown after confirmation.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setResetTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="default"
+                disabled={busyId !== null}
+                onClick={() => {
+                  const id = resetTarget?.id;
+                  if (id) resetPassword(id);
+                }}
+              >
+                {busyId ? <RefreshCw className="mr-1 h-4 w-4 animate-spin" /> : <AlertTriangle className="mr-1 h-4 w-4" />}
+                Reset password
+              </Button>
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
     </>
