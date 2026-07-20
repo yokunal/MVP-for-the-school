@@ -52,7 +52,8 @@ export function BookForm({
   const { push } = useToast();
 
   const [library, setLibrary] = useState<Library>(initial?.library ?? "GENERAL");
-  const [file, setFile] = useState<File | null>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [epubFile, setEpubFile] = useState<File | null>(null);
   const [format, setFormat] = useState<Format>(
     initial
       ? initial.hasPdf && initial.hasEpub
@@ -81,17 +82,17 @@ export function BookForm({
     }
     if (mode === "create") {
       if (format === "none") return "Select at least one format.";
-      if ((format === "pdf" || format === "both") && !file) {
-        return "Pick a PDF file or change the format.";
+      if ((format === "pdf" || format === "both") && !pdfFile) {
+        return "Select a PDF file.";
       }
-      if ((format === "epub" || format === "both") && !file) {
-        return "Pick an EPUB file or change the format.";
+      if ((format === "epub" || format === "both") && !epubFile) {
+        return "Select an EPUB file.";
       }
-      if (format === "both") {
-        if (!file) return "Pick the book file (PDF + EPUB share this slot in v1).";
+      if (pdfFile && pdfFile.size > MAX_FILE_BYTES) {
+        return `PDF file is too large (max ${MAX_FILE_BYTES / 1024 / 1024} MB).`;
       }
-      if (file && file.size > MAX_FILE_BYTES) {
-        return `File is too large (max ${MAX_FILE_BYTES / 1024 / 1024} MB).`;
+      if (epubFile && epubFile.size > MAX_FILE_BYTES) {
+        return `EPUB file is too large (max ${MAX_FILE_BYTES / 1024 / 1024} MB).`;
       }
       if (cover && cover.size > 10 * 1024 * 1024) {
         return "Cover image must be 10 MB or smaller.";
@@ -190,12 +191,12 @@ export function BookForm({
 
       if (mode === "create") {
         if (format === "pdf" || format === "both") {
-          if (!file) throw new Error("PDF file is required");
-          pdfKey = await presignAndPut(file, "pdf");
+          if (!pdfFile) throw new Error("PDF file is required");
+          pdfKey = await presignAndPut(pdfFile, "pdf");
         }
         if (format === "epub" || format === "both") {
-          if (!file) throw new Error("EPUB file is required");
-          epubKey = await presignAndPut(file, "epub");
+          if (!epubFile) throw new Error("EPUB file is required");
+          epubKey = await presignAndPut(epubFile, "epub");
         }
         if (cover) {
           coverImageKey = await presignAndPut(cover, "cover");
@@ -290,19 +291,45 @@ export function BookForm({
           <CardHeader>
             <CardTitle>2 · File</CardTitle>
             <CardDescription>
-              Pick the actual book file (PDF or EPUB). Max 200 MB.
+              {format === "both"
+                ? "Upload the PDF and EPUB files separately. Max 200 MB each."
+                : format === "pdf"
+                  ? "Pick the PDF file. Max 200 MB."
+                  : "Pick the EPUB file. Max 200 MB."}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <Input
-              type="file"
-              accept=".pdf,.epub,application/pdf,application/epub+zip"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
-            {file && (
-              <p className="text-xs text-muted-foreground">
-                {file.name} ({(file.size / 1024 / 1024).toFixed(1)} MB)
-              </p>
+          <CardContent className="space-y-3">
+            {(format === "pdf" || format === "both") && (
+              <div>
+                <Label htmlFor="pdf-file" className="text-xs text-muted-foreground">PDF file</Label>
+                <Input
+                  id="pdf-file"
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)}
+                />
+                {pdfFile && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {pdfFile.name} ({(pdfFile.size / 1024 / 1024).toFixed(1)} MB)
+                  </p>
+                )}
+              </div>
+            )}
+            {(format === "epub" || format === "both") && (
+              <div>
+                <Label htmlFor="epub-file" className="text-xs text-muted-foreground">EPUB file</Label>
+                <Input
+                  id="epub-file"
+                  type="file"
+                  accept=".epub,application/epub+zip"
+                  onChange={(e) => setEpubFile(e.target.files?.[0] ?? null)}
+                />
+                {epubFile && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {epubFile.name} ({(epubFile.size / 1024 / 1024).toFixed(1)} MB)
+                  </p>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -318,19 +345,27 @@ export function BookForm({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Select value={format} onValueChange={(v) => setFormat(v as Format)}>
+            <Select value={format} onValueChange={(v) => {
+              setFormat(v as Format);
+              // Reset file selections when format changes to avoid stale state.
+              if (v !== "pdf" && v !== "both") setPdfFile(null);
+              if (v !== "epub" && v !== "both") setEpubFile(null);
+            }}>
               <SelectTrigger className="sm:w-72">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="pdf">PDF only</SelectItem>
                 <SelectItem value="epub">EPUB only</SelectItem>
+                <SelectItem value="both">Both PDF + EPUB</SelectItem>
               </SelectContent>
             </Select>
             <p className="mt-2 text-xs text-muted-foreground">
               {format === "pdf"
                 ? "The uploaded file must be a PDF."
-                : "The uploaded file must be an EPUB."}
+                : format === "epub"
+                  ? "The uploaded file must be an EPUB."
+                  : "Upload both PDF and EPUB files above."}
             </p>
           </CardContent>
         </Card>
