@@ -12,8 +12,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Copy, RefreshCw, ShieldOff, ShieldCheck } from "lucide-react";
+import { Copy, RefreshCw, ShieldOff, ShieldCheck, AlertTriangle } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { Role } from "@/types";
 
 export type UserRow = {
@@ -36,6 +44,7 @@ export function UsersTable({
   const router = useRouter();
   const { push } = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [resetTarget, setResetTarget] = useState<UserRow | null>(null);
 
   async function resetPassword(id: string): Promise<void> {
     setBusyId(id);
@@ -55,6 +64,7 @@ export function UsersTable({
       }
     } finally {
       setBusyId(null);
+      setResetTarget(null);
     }
   }
 
@@ -79,7 +89,8 @@ export function UsersTable({
   }
 
   return (
-    <Table>
+    <>
+      <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
@@ -119,7 +130,7 @@ export function UsersTable({
                     size="sm"
                     variant="ghost"
                     disabled={busyId === u.id}
-                    onClick={() => resetPassword(u.id)}
+                    onClick={() => setResetTarget(u)}
                   >
                     <Copy className="h-3.5 w-3.5" /> Reset pwd
                   </Button>
@@ -148,5 +159,36 @@ export function UsersTable({
         )}
       </TableBody>
     </Table>
+
+    {/* Reset password confirmation dialog */}
+    <Dialog open={resetTarget !== null} onOpenChange={(o) => { if (!o) setResetTarget(null); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reset password</DialogTitle>
+          <DialogDescription>
+            Reset password for <span className="font-medium text-foreground">{resetTarget?.name}</span>
+            {" "}({resetTarget?.email})? A new temporary password will be generated and
+            shown after confirmation.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setResetTarget(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="default"
+            disabled={busyId !== null}
+            onClick={() => {
+              const id = resetTarget?.id;
+              if (id) resetPassword(id);
+            }}
+          >
+            {busyId ? <RefreshCw className="mr-1 h-4 w-4 animate-spin" /> : <AlertTriangle className="mr-1 h-4 w-4" />}
+            Reset password
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
