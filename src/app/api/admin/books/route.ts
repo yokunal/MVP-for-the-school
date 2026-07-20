@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { isLibraryEnum } from "@/lib/csv";
+import { validateStoredFileSignature } from "@/lib/r2";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -52,6 +53,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       { error: "A book must include at least one PDF or EPUB file." },
       { status: 400 }
     );
+  }
+
+  // Server-side magic-byte validation for all uploaded files.
+  const keysToValidate = [pdfKey, epubKey, parsed.data.coverImageKey ?? null].filter(Boolean) as string[];
+  for (const k of keysToValidate) {
+    const sigError = await validateStoredFileSignature(k);
+    if (sigError) {
+      return NextResponse.json({ error: sigError }, { status: 400 });
+    }
   }
 
   try {

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSessionUser } from "@/lib/session";
 import { isLocalMode } from "@/lib/r2";
 import { saveLocalFile, localPathFor } from "@/lib/local-store";
+import { validateMagicBytes, inferKind } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -52,6 +53,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const buffer = Buffer.from(await fileRaw.arrayBuffer());
+
+  // Server-side magic-byte validation.
+  const kind = inferKind(keyParsed.data);
+  if (kind && !validateMagicBytes(buffer, kind)) {
+    return NextResponse.json(
+      { error: `File content does not match expected format (${kind}). Magic-byte validation failed.` },
+      { status: 400 }
+    );
+  }
+
   try {
     await saveLocalFile(keyParsed.data, buffer, fileRaw.type || "application/octet-stream");
   } catch (err) {

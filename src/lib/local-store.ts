@@ -114,3 +114,20 @@ export async function deleteLocalFile(key: string): Promise<void> {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
   }
 }
+
+/** Read first `byteLength` bytes from a local file. Returns null if file not found. */
+export async function readLocalFileBytes(key: string, byteLength: number): Promise<Buffer | null> {
+  const { open } = await import("fs/promises");
+  const p = pathFor(key);
+  let fd: import("fs").promises.FileHandle | null = null;
+  try {
+    fd = await open(p, "r");
+    const buf = Buffer.alloc(byteLength);
+    const { bytesRead } = await fd.read(buf, 0, byteLength, 0);
+    return buf.subarray(0, bytesRead);
+  } catch {
+    return null;
+  } finally {
+    await fd?.close();
+  }
+}

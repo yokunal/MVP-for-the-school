@@ -11,8 +11,10 @@ import {
   shouldUseLocalStore,
   localDownloadUrl,
   deleteLocalFile,
+  readLocalFileBytes,
   LOCAL_UPLOADS_DIR,
 } from "@/lib/local-store";
+import { inferKind, validateMagicBytes } from "@/lib/uploads";
 
 // ---------------------------------------------------------------------------
 // Storage client. Tries Cloudflare R2 (S3-compatible) in production and
@@ -133,4 +135,48 @@ export async function deleteObject(key: string | null | undefined): Promise<void
     Key: key,
   });
   await getClient().send(command);
+}
+
+/**
+ * Fetch first bytes of a stored object and validate them against the expected
+ * magic-byte signature for the key's upload kind. Returns null on success or
+ * an error string if validation fails. Used at book-creation time to catch
+ * MIME-confusion attacks (e.g. a renamed .exe uploaded as .pdf).
+ */
+export async function validateStoredFileSignature(key: string): Promise<string | null> {
+  const kind = inferKind(key);
+  if (!kind) return null; // unknown kind — skip validation
+
+  const maxBytes = 64; // enough for any signature in our set
+  let buffer: Buffer | null = null;
+
+  if (isLocalMode()) {
+    const local = await readLocalFileBytes(key, maxBytes);
+    if (!local) return `File not found on local store: ${key}`;
+    buffer = local;
+  } else {
+    try {
+      const command = new GetObjectCommand({
+        Bucket: getR2Bucket(),
+        Key: key,
+        Range: `bytes=0-${maxBytes - 1}`,
+      });
+      const response = await getClient().send(command);
+      const body = response.Body;
+      if (!body) return `Could not read file from R2: ${key}`;
+      const chunks: Uint8Array[] = [];
+      // @ts-expect-error — Readable is not fully typed in Node 18+
+      for await (const chunk of body) {
+        chunks.push(chunk instanceof Uint8Array ? chunk : Buffer.from(chunk));
+      }
+      buffer = Buffer.concat(chunks);
+    } catch (err) {
+      return `Could not fetch file bytes from R2 for validation: ${(err as Error).message}`;
+    }
+  }
+
+  if (!validateMagicBytes(buffer, kind)) {
+    return `File content does not match expected format (${kind}). Magic-byte validation failed.`;
+  }
+  return null;
 }
