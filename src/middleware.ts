@@ -36,6 +36,23 @@ export default async function middleware(req: NextRequest): Promise<NextResponse
 
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
 
+  // API routes: return JSON 401/403 instead of HTML redirect.
+  if (path.startsWith("/api/")) {
+    if (!token) {
+      return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+    }
+    if (token.mustChangePassword) {
+      return NextResponse.json(
+        { error: "Must change password before accessing this resource" },
+        { status: 403 }
+      );
+    }
+    if (path.startsWith("/api/admin") && token.role !== "ADMIN") {
+      return NextResponse.json({ error: "Admin only" }, { status: 403 });
+    }
+    return NextResponse.next();
+  }
+
   // Not signed in — redirect to login.
   if (!token) {
     const signInUrl = new URL("/login", req.url);
