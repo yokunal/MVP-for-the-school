@@ -85,6 +85,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     data: {
       passwordHash: newHash,
       mustChangePassword: false,
+      sessionVersion: { increment: 1 },
     },
   });
 
