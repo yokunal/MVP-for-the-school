@@ -22,6 +22,9 @@ export function AdminHeader(): React.ReactElement {
             <Link href="/admin/users" className="hover:underline">
               Users
             </Link>
+            <Link href="/admin/audit-log" className="hover:underline">
+              Audit Log
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-3 text-sm">

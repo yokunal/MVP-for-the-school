@@ -20,11 +20,11 @@ export default async function DashboardPage(): Promise<React.ReactElement> {
   const [bookCountsByLibrary, recent, inProgress] = await Promise.all([
     prisma.book.groupBy({
       by: ["library"],
-      where: { library: { in: accessible } },
+      where: { library: { in: accessible }, deletedAt: null },
       _count: true,
     }),
     prisma.book.findMany({
-      where: { library: { in: accessible } },
+      where: { library: { in: accessible }, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: 6,
       select: {

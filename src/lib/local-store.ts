@@ -104,3 +104,13 @@ export function localPathFor(key: string): string {
 export function localDownloadUrl(key: string): string {
   return `/api/local/files/${safeKey(key).split("/").map(encodeURIComponent).join("/")}`;
 }
+
+export async function deleteLocalFile(key: string): Promise<void> {
+  const { unlink } = await import("fs/promises");
+  const p = pathFor(key);
+  try {
+    await unlink(p);
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+}

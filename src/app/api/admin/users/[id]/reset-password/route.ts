@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { CsvUserParser } from "@/lib/csv";
+import { AuditLog } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -33,7 +34,15 @@ export async function POST(
   const tempPassword = CsvUserParser.generateTempPassword();
   await prisma.user.update({
     where: { id: ctx.params.id },
-    data: { passwordHash: await bcrypt.hash(tempPassword, 10) },
+    data: {
+      passwordHash: await bcrypt.hash(tempPassword, 12),
+      mustChangePassword: true,
+      sessionVersion: { increment: 1 },
+    },
+  });
+
+  AuditLog.write(user.id, user.email, "PASSWORD_RESET", {
+    targetUserId: ctx.params.id,
   });
 
   return NextResponse.json({ ok: true, tempPassword });

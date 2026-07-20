@@ -9,6 +9,8 @@ declare module "next-auth" {
       email: string;
       role: Role;
       classGrade: number | null;
+      mustChangePassword: boolean;
+      sessionVersion: number;
     };
   }
 
@@ -19,6 +21,8 @@ declare module "next-auth" {
     role: Role;
     classGrade: number | null;
     isActive: boolean;
+    mustChangePassword: boolean;
+    sessionVersion: number;
   }
 }
 
@@ -27,5 +31,7 @@ declare module "next-auth/jwt" {
     id: string;
     role: Role;
     classGrade: number | null;
+    mustChangePassword: boolean;
+    sessionVersion: number;
   }
 }

@@ -21,8 +21,8 @@ export default async function ReadBookPage({
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const book = await prisma.book.findUnique({
-    where: { id: params.bookId },
+  const book = await prisma.book.findFirst({
+    where: { id: params.bookId, deletedAt: null },
     select: {
       id: true,
       title: true,

@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { CsvUserParser } from "@/lib/csv";
+import { AuditLog } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await bcrypt.hash(password, 12);
   const created = await prisma.user.create({
     data: {
       name,
@@ -81,6 +82,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       isActive: true,
     },
     select: { id: true, email: true, name: true, role: true, classGrade: true },
+  });
+
+  AuditLog.write(user.id, user.email, "USER_CREATED", {
+    targetUserId: created.id,
+    metadata: { name, role, classGrade },
   });
 
   return NextResponse.json({ user: created, tempPassword: password });

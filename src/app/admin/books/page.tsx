@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { ALL_LIBRARIES, LIBRARY_LABELS, type Library as LibEnum } from "@/types";
 import { isLibraryEnum } from "@/lib/csv";
 import { Plus, Pencil } from "lucide-react";
+import { DeleteBookButton } from "@/components/admin/delete-book-button";
 
 export default async function AdminBooksPage({
   searchParams,
@@ -28,13 +29,14 @@ export default async function AdminBooksPage({
 
   const books = await prisma.book.findMany({
     where: {
+      deletedAt: null,
       ...(filterLib ? { library: filterLib } : {}),
       ...(q
         ? {
             OR: [
-              { title: { contains: q, mode: "insensitive" } },
-              { author: { contains: q, mode: "insensitive" } },
-              { subject: { contains: q, mode: "insensitive" } },
+              { title: { contains: q } },
+              { author: { contains: q } },
+              { subject: { contains: q } },
             ],
           }
         : {}),
@@ -106,7 +108,7 @@ export default async function AdminBooksPage({
                     <TableCell>{b.author}</TableCell>
                     <TableCell>{b.subject}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{LIBRARY_LABELS[b.library]}</Badge>
+                      <Badge variant="outline">{LIBRARY_LABELS[b.library as LibEnum]}</Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
@@ -118,11 +120,14 @@ export default async function AdminBooksPage({
                       {b.uploadedBy.name}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button asChild size="sm" variant="ghost">
-                        <Link href={`/admin/books/${b.id}/edit`}>
-                          <Pencil className="h-3.5 w-3.5" /> Edit
-                        </Link>
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button asChild size="sm" variant="ghost">
+                          <Link href={`/admin/books/${b.id}/edit`}>
+                            <Pencil className="h-3.5 w-3.5" /> Edit
+                          </Link>
+                        </Button>
+                        <DeleteBookButton bookId={b.id} bookTitle={b.title} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

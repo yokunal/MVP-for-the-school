@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { CsvUserParser, type CsvPreviewRow } from "@/lib/csv";
+import { AuditLog } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         continue;
       }
       const tempPassword = CsvUserParser.generateTempPassword();
-      const hash = await bcrypt.hash(tempPassword, 10);
+      const hash = await bcrypt.hash(tempPassword, 12);
       await prisma.user.create({
         data: {
           name: row.name,
@@ -119,6 +120,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     },
     {} as Record<string, number>
   );
+
+  AuditLog.write(user.id, user.email, "USER_BULK_IMPORTED", {
+    metadata: { created: summary.created ?? 0, skipped: summary.skipped ?? 0, errors: summary.error ?? 0 },
+  });
 
   return NextResponse.json({ results, summary });
 }

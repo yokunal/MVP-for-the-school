@@ -45,6 +45,7 @@ export async function GET(
         { epubKey: key },
         { coverImageKey: key },
       ],
+      deletedAt: null,
     },
     select: { id: true, library: true },
   });

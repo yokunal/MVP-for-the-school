@@ -53,8 +53,8 @@ export async function GET(req: NextRequest): Promise<NextResponse<SignResponse>>
     );
   }
 
-  const book = await prisma.book.findUnique({
-    where: { id: bookId },
+  const book = await prisma.book.findFirst({
+    where: { id: bookId, deletedAt: null },
     select: {
       id: true,
       library: true,

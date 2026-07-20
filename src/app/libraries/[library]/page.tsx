@@ -29,7 +29,7 @@ export default async function LibraryPage({
   }
 
   const books = await prisma.book.findMany({
-    where: { library },
+    where: { library, deletedAt: null },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,

@@ -38,8 +38,8 @@ export async function POST(
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
-  const book = await prisma.book.findUnique({
-    where: { id: ctx.params.bookId },
+  const book = await prisma.book.findFirst({
+    where: { id: ctx.params.bookId, deletedAt: null },
     select: {
       id: true,
       title: true,

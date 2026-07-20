@@ -1,4 +1,5 @@
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
   PutObjectCommand,
@@ -9,6 +10,7 @@ import { getServerEnv } from "@/lib/env";
 import {
   shouldUseLocalStore,
   localDownloadUrl,
+  deleteLocalFile,
   LOCAL_UPLOADS_DIR,
 } from "@/lib/local-store";
 
@@ -117,3 +119,18 @@ export async function checkR2Health(): Promise<boolean> {
 
 /** Path of the local uploads directory (dev/test only). */
 export { LOCAL_UPLOADS_DIR };
+
+/**
+ * Delete an object from storage (R2 or local). No-op if key is null/empty.
+ */
+export async function deleteObject(key: string | null | undefined): Promise<void> {
+  if (!key) return;
+  if (isLocalMode()) {
+    return deleteLocalFile(key);
+  }
+  const command = new DeleteObjectCommand({
+    Bucket: getR2Bucket(),
+    Key: key,
+  });
+  await getClient().send(command);
+}

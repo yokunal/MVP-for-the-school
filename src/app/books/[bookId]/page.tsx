@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookChat } from "@/components/book-chat";
-import { LIBRARY_LABELS } from "@/types";
+import { LIBRARY_LABELS, type Library } from "@/types";
 import { BookOpen, FileText, Book as BookIcon } from "lucide-react";
 
 export default async function BookDetailPage({
@@ -19,8 +19,8 @@ export default async function BookDetailPage({
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const book = await prisma.book.findUnique({
-    where: { id: params.bookId },
+  const book = await prisma.book.findFirst({
+    where: { id: params.bookId, deletedAt: null },
   });
   if (!book) notFound();
   if (!AccessPolicy.canReadBook(user.role, user.classGrade, book.library)) {
@@ -44,7 +44,7 @@ export default async function BookDetailPage({
           href={`/libraries/${book.library}`}
           className="text-xs text-muted-foreground hover:underline"
         >
-          ← {LIBRARY_LABELS[book.library]}
+          ← {LIBRARY_LABELS[book.library as Library]}
         </a>
 
         <div className="mt-4 grid gap-8 md:grid-cols-[260px_1fr]">
@@ -86,7 +86,7 @@ export default async function BookDetailPage({
               <p className="text-muted-foreground">by {book.author}</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Badge variant="secondary">{book.subject}</Badge>
-                <Badge variant="outline">{LIBRARY_LABELS[book.library]}</Badge>
+                <Badge variant="outline">{LIBRARY_LABELS[book.library as Library]}</Badge>
                 {hasPdf && (
                   <Badge variant="outline" className="gap-1">
                     <FileText className="h-3 w-3" /> PDF

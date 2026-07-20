@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { BookForm } from "@/components/admin/book-form";
+import type { Library } from "@/types";
 
 export default async function EditBookPage({
   params,
@@ -29,7 +30,7 @@ export default async function EditBookPage({
           author: book.author,
           subject: book.subject,
           synopsis: book.synopsis,
-          library: book.library,
+          library: book.library as Library,
           hasPdf: Boolean(book.pdfKey),
           hasEpub: Boolean(book.epubKey),
           hasCover: Boolean(book.coverImageKey),

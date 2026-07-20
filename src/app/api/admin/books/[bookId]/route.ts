@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { isLibraryEnum } from "@/lib/csv";
+import { deleteObject } from "@/lib/r2";
+import { AuditLog } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -80,17 +82,38 @@ export async function DELETE(
   if (!user || user.role !== "ADMIN") {
     return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
-  const existing = await prisma.book.findUnique({
+  const book = await prisma.book.findUnique({
     where: { id: ctx.params.bookId },
-    select: { id: true },
+    select: {
+      id: true,
+      title: true,
+      pdfKey: true,
+      epubKey: true,
+      coverImageKey: true,
+      deletedAt: true,
+    },
   });
-  if (!existing) {
+  if (!book) {
     return NextResponse.json({ error: "Book not found" }, { status: 404 });
   }
+  if (book.deletedAt) {
+    return NextResponse.json({ error: "Book already deleted" }, { status: 409 });
+  }
   try {
-    // ReadingProgress cascades via Prisma onDelete: Cascade.
-    await prisma.book.delete({ where: { id: ctx.params.bookId } });
-    // R2 keys are left in place (intentional — non-destructive on delete).
+    await prisma.book.update({
+      where: { id: ctx.params.bookId },
+      data: { deletedAt: new Date() },
+    });
+    // Delete associated files from storage (best-effort).
+    await Promise.allSettled([
+      deleteObject(book.pdfKey),
+      deleteObject(book.epubKey),
+      deleteObject(book.coverImageKey),
+    ]);
+    AuditLog.write(user.id, user.email, "BOOK_DELETED", {
+      targetBookId: book.id,
+      metadata: { title: book.title },
+    });
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

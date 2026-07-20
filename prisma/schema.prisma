@@ -16,14 +16,16 @@ datasource db {
 // matching TypeScript types live in src/types/index.ts.
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         String
-  classGrade   Int?
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id                  String   @id @default(cuid())
+  name                String
+  email               String   @unique
+  passwordHash        String
+  role                String
+  classGrade          Int?
+  isActive            Boolean  @default(true)
+  mustChangePassword  Boolean  @default(true)
+  sessionVersion      Int      @default(0)
+  createdAt           DateTime @default(now())
 
   uploadedBooks   Book[]            @relation("UploadedBy")
   readingProgress ReadingProgress[]
@@ -42,6 +44,7 @@ model Book {
   uploadedById  String
   uploadedBy    User     @relation("UploadedBy", fields: [uploadedById], references: [id])
   createdAt     DateTime @default(now())
+  deletedAt     DateTime?
 
   readingProgress ReadingProgress[]
 
@@ -61,4 +64,19 @@ model ReadingProgress {
 
   @@unique([userId, bookId])
   @@index([userId])
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  actorId       String
+  actorEmail    String
+  action        String
+  targetUserId  String?
+  targetBookId  String?
+  metadata      String?  // JSON string — SQLite has no native JSON column
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action])
+  @@index([actorId])
 }

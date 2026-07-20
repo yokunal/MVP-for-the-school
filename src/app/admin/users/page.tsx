@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { UsersTable, type UserRow } from "@/components/admin/users-table";
 import { AddUserForm } from "@/components/admin/add-user-form";
 import { Upload } from "lucide-react";
+import type { Role } from "@/types";
 
 export default async function UsersAdminPage({
   searchParams,
@@ -19,23 +20,26 @@ export default async function UsersAdminPage({
     where: q
       ? {
           OR: [
-            { name: { contains: q, mode: "insensitive" } },
-            { email: { contains: q, mode: "insensitive" } },
+            { name: { contains: q } },
+            { email: { contains: q } },
           ],
         }
       : undefined,
     orderBy: { createdAt: "desc" },
   });
 
-  const rows: UserRow[] = users.map((u) => ({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    role: u.role,
-    classGrade: u.classGrade,
-    isActive: u.isActive,
-    createdAt: u.createdAt.toISOString(),
-  }));
+  const rows: UserRow[] = users.map((u) => {
+    const row: UserRow = {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role as Role,
+      classGrade: u.classGrade,
+      isActive: u.isActive,
+      createdAt: u.createdAt.toISOString(),
+    };
+    return row;
+  });
 
   return (
     <main className="container space-y-6 py-8">
