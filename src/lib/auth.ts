@@ -5,6 +5,12 @@ import { prisma } from "@/lib/db";
 import { loginRateLimiter, extractIp } from "@/lib/rate-limit";
 import type { Role } from "@/types";
 
+// In-memory cache for JWT callback DB checks.
+// Prevents DB round-trip on every request while catching deactivation/role
+// changes within 60s window. Single-process cache — safe for Railway.
+const jwtUserCache = new Map<string, { isActive: boolean; sessionVersion: number; expiresAt: number }>();
+const JWT_CACHE_TTL_MS = 60_000;
+
 /**
  * NextAuth configuration for the school library.
  *
@@ -73,8 +79,16 @@ export const authOptions: NextAuthOptions = {
       }
 
       // On each token refresh, verify user still active and sessionVersion
-      // matches. If not, clear the token to force re-auth.
+      // matches. Cache result for 60s to avoid DB round-trip on every request.
       if (token.id) {
+        const cached = jwtUserCache.get(token.id);
+        if (cached && Date.now() <= cached.expiresAt) {
+          if (!cached.isActive || cached.sessionVersion !== token.sessionVersion) {
+            return null as unknown as typeof token;
+          }
+          return token;
+        }
+
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: token.id },
@@ -84,9 +98,14 @@ export const authOptions: NextAuthOptions = {
             // Returning null clears the JWT cookie -> forces re-auth.
             return null as unknown as typeof token;
           }
+          jwtUserCache.set(token.id, {
+            isActive: dbUser.isActive,
+            sessionVersion: dbUser.sessionVersion,
+            expiresAt: Date.now() + JWT_CACHE_TTL_MS,
+          });
         } catch {
           // DB unreachable — keep current token to avoid mass logouts
-          // during transient outages.
+          // during transient outages. Cache NOT set so next request retries.
         }
       }
 
