@@ -8,8 +8,10 @@ import type { Role } from "@/types";
 // In-memory cache for JWT callback DB checks.
 // Prevents DB round-trip on every request while catching deactivation/role
 // changes within 60s window. Single-process cache — safe for Railway.
+// Max 2000 entries; LRU-style eviction by oldest-expiry-first when exceeded.
 const jwtUserCache = new Map<string, { isActive: boolean; sessionVersion: number; expiresAt: number }>();
 const JWT_CACHE_TTL_MS = 60_000;
+const JWT_CACHE_MAX_SIZE = 2000;
 
 /**
  * NextAuth configuration for the school library.
@@ -82,11 +84,15 @@ export const authOptions: NextAuthOptions = {
       // matches. Cache result for 60s to avoid DB round-trip on every request.
       if (token.id) {
         const cached = jwtUserCache.get(token.id);
-        if (cached && Date.now() <= cached.expiresAt) {
-          if (!cached.isActive || cached.sessionVersion !== token.sessionVersion) {
-            return null as unknown as typeof token;
+        if (cached) {
+          if (Date.now() <= cached.expiresAt) {
+            if (!cached.isActive || cached.sessionVersion !== token.sessionVersion) {
+              return null as unknown as typeof token;
+            }
+            return token;
           }
-          return token;
+          // Expired entry — remove it so map doesn't grow stale.
+          jwtUserCache.delete(token.id);
         }
 
         try {
@@ -103,6 +109,14 @@ export const authOptions: NextAuthOptions = {
             sessionVersion: dbUser.sessionVersion,
             expiresAt: Date.now() + JWT_CACHE_TTL_MS,
           });
+          // Evict oldest-expiry entries when cache exceeds max size.
+          if (jwtUserCache.size > JWT_CACHE_MAX_SIZE) {
+            const sorted = [...jwtUserCache.entries()].sort(
+              (a, b) => a[1].expiresAt - b[1].expiresAt
+            );
+            const toEvict = sorted.slice(0, Math.floor(jwtUserCache.size * 0.2));
+            for (const [k] of toEvict) jwtUserCache.delete(k);
+          }
         } catch {
           // DB unreachable — keep current token to avoid mass logouts
           // during transient outages. Cache NOT set so next request retries.
