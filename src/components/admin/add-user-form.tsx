@@ -24,9 +24,25 @@ export function AddUserForm(): React.ReactElement {
   const [classGrade, setClassGrade] = useState<number | "">("");
   const [busy, setBusy] = useState(false);
   const [tempPwd, setTempPwd] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  function validate(): boolean {
+    const e: Record<string, string> = {};
+    if (!name.trim()) e.name = "Name is required.";
+    else if (name.length > 120) e.name = "Name must be 120 characters or fewer.";
+    if (!email.trim()) e.email = "Email is required.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) e.email = "Enter a valid email address.";
+    if (role === "STUDENT" && (classGrade === "" || Number(classGrade) < 6 || Number(classGrade) > 12)) {
+      e.classGrade = "Select a class (6–12).";
+    }
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
 
   async function submit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
+    setErrors({});
+    if (!validate()) return;
     setBusy(true);
     setTempPwd(null);
     try {
@@ -71,10 +87,12 @@ export function AddUserForm(): React.ReactElement {
           <div className="space-y-1.5">
             <Label htmlFor="name">Name</Label>
             <Input id="name" required value={name} onChange={(e) => setName(e.target.value)} />
+            {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
             <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
           </div>
           <div className="space-y-1.5">
             <Label>Role</Label>
@@ -107,6 +125,7 @@ export function AddUserForm(): React.ReactElement {
                   ))}
                 </SelectContent>
               </Select>
+              {errors.classGrade && <p className="text-xs text-destructive">{errors.classGrade}</p>}
             </div>
           )}
           <div className="sm:col-span-2 flex items-center justify-between gap-2">
