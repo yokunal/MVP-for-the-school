@@ -83,6 +83,11 @@ export class InMemoryRateLimitStore implements RateLimitStore {
 
 // -----------------------------------------------------------------------
 // Singleton — shared across all consumers in the same Node process.
+//
+// In-memory only — does NOT work across multiple instances. Current Railway
+// deployment runs a single Node process, so this is correct. If scaling to
+// multiple instances in the future, swap InMemoryRateLimitStore for a Redis-
+// backed implementation sharing the same RateLimitStore interface.
 // -----------------------------------------------------------------------
 
 export const loginRateLimiter = new InMemoryRateLimitStore(5, 15);
@@ -98,6 +103,10 @@ setInterval(() => {
 
 // -----------------------------------------------------------------------
 // Helper to extract client IP from a Next.js request-like object.
+//
+// Trusts x-forwarded-for — safe because Railway is the only ingress proxy.
+// If deploying behind a configurable proxy (e.g. Cloudflare, nginx), verify
+// that it sets x-forwarded-for reliably before trusting it.
 // -----------------------------------------------------------------------
 
 export function extractIp(

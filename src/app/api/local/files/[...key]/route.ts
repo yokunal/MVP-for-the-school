@@ -18,6 +18,10 @@ export const runtime = "nodejs";
  * counterpart of `/api/files/sign` — in local mode the client uses it
  * directly instead of an R2 signed URL.
  *
+ * Note: This local-mode endpoint has no URL expiry (unlike R2 signed URLs
+ * which have a 300s default TTL). Acceptable for local development. In
+ * production (R2 mode), signed URLs enforce expiry automatically.
+ *
  * Key shape: "books/pdf/<id>.pdf", "books/epub/<id>.epub", or "covers/<id>.jpg".
  * We resolve the parent book by trimming the filename prefix.
  */
