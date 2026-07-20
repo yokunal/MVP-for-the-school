@@ -18,8 +18,8 @@ import type {
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Minus, Plus } from "lucide-react";
 
-// pdfjs-dist ships the worker from the CDN matching the installed version.
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Self-hosted worker (copied to public/ via postinstall script).
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 type Props = {
   bookId: string;

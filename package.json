@@ -13,7 +13,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:studio": "prisma studio",
-    "postinstall": "prisma generate || true"
+    "postinstall": "node scripts/copy-pdf-worker.mjs && prisma generate || true"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
