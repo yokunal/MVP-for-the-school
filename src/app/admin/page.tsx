@@ -7,9 +7,13 @@ import { Plus, Upload, Users } from "lucide-react";
 
 export default async function AdminHomePage(): Promise<React.ReactElement> {
   const [bookCount, userCount, byLibrary, recentUsers] = await Promise.all([
-    prisma.book.count(),
+    prisma.book.count({ where: { deletedAt: null } }),
     prisma.user.count(),
-    prisma.book.groupBy({ by: ["library"], _count: true }),
+    prisma.book.groupBy({
+      by: ["library"],
+      where: { deletedAt: null },
+      _count: true,
+    }),
     prisma.user.findMany({
       orderBy: { createdAt: "desc" },
       take: 5,
