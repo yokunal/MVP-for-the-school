@@ -67,10 +67,5 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
-
-/* react-pdf container: bound it inside the reader page */
-.react-pdf__Page__canvas {
-  margin: 0 auto;
-  max-width: 100%;
   height: auto !important;
 }
