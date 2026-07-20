@@ -61,8 +61,10 @@ export class InMemoryRateLimitStore implements RateLimitStore {
     if (!entry) {
       return { blocked: false, remaining: this.maxAttempts };
     }
+    // Count timestamps still within the window — do NOT mutate store here.
+    // Mutation only happens in recordFailure() and cleanup(), so that
+    // calling check() alone never grants extra attempts.
     const recent = entry.timestamps.filter((t) => now - t < this.windowMs);
-    entry.timestamps = recent;
     if (recent.length >= this.maxAttempts) {
       const resetAt = new Date(Math.min(...recent) + this.windowMs);
       return { blocked: true, remaining: 0, resetAt };
