@@ -1,6 +1,14 @@
 import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Fail fast at server start if auth env is misconfigured.
+if (!process.env.NEXTAUTH_SECRET) {
+  throw new Error(
+    "NEXTAUTH_SECRET is not set. Add it to your .env file. " +
+    "Generate one with: openssl rand -base64 32"
+  );
+}
+
 /**
  * Route protection.
  *

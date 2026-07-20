@@ -10,9 +10,8 @@ const serverSchema = z.object({
   // Database — required
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
-  // NextAuth — required for any auth-touching route. Step 1 doesn't use it yet,
-  // but we surface the error now so a missing key isn't a surprise in step 2.
-  NEXTAUTH_SECRET: z.string().min(1, "NEXTAUTH_SECRET is required").optional(),
+  // NextAuth — required. Validated at middleware import time via getServerEnv().
+  NEXTAUTH_SECRET: z.string().min(1, "NEXTAUTH_SECRET is required"),
   NEXTAUTH_URL: z.string().url().optional(),
 
   // Cloudflare R2 — required
