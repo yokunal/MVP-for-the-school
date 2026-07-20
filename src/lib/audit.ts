@@ -11,6 +11,7 @@ export const AuditAction = {
   USER_DEACTIVATED: "USER_DEACTIVATED",
   USER_REACTIVATED: "USER_REACTIVATED",
   BOOK_DELETED: "BOOK_DELETED",
+  BOOK_ERROR: "BOOK_ERROR",
 } as const;
 
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];

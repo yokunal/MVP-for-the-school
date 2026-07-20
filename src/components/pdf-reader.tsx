@@ -23,6 +23,7 @@ type Props = {
   url: string;
   title: string;
   initialPage: number;
+  onError?: (message: string) => void;
 };
 
 type PageSize = { w: number; h: number };
@@ -73,6 +74,7 @@ export function PdfReader({
   url,
   title,
   initialPage,
+  onError,
 }: Props): React.ReactElement {
   // ---- document + per-page intrinsic sizes ----
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
@@ -155,7 +157,9 @@ export function PdfReader({
         setPageSizes(sizes);
       } catch (e) {
         if (!cancelled) {
-          setDocError((e as Error).message || "Could not load PDF");
+          const msg = (e as Error).message || "Could not load PDF";
+          setDocError(msg);
+          onError?.(msg);
         }
         try {
           await acquired?.destroy();

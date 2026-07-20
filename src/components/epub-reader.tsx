@@ -8,9 +8,10 @@ type Props = {
   bookId: string;
   url: string;
   initialCfi: string | null;
+  onError?: (message: string) => void;
 };
 
-export function EpubReader({ bookId, url, initialCfi }: Props): React.ReactElement {
+export function EpubReader({ bookId, url, initialCfi, onError }: Props): React.ReactElement {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const bookRef = useRef<any>(null);
   const renditionRef = useRef<any>(null);
@@ -65,7 +66,9 @@ export function EpubReader({ bookId, url, initialCfi }: Props): React.ReactEleme
         });
       } catch (err) {
         if (!cancelled) {
-          setError((err as Error).message || "Could not load EPUB");
+          const msg = (err as Error).message || "Could not load EPUB";
+          setError(msg);
+          onError?.(msg);
         }
       }
     })();

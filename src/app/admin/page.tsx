@@ -6,6 +6,8 @@ import { ALL_LIBRARIES, LIBRARY_LABELS } from "@/types";
 import { Plus, Upload, Users } from "lucide-react";
 import { egressTracker } from "@/lib/egress-tracker";
 
+type ErrorMeta = { kind?: string; error?: string };
+
 export default async function AdminHomePage(): Promise<React.ReactElement> {
   const [bookCount, userCount, byLibrary, recentUsers] = await Promise.all([
     prisma.book.count({ where: { deletedAt: null } }),
@@ -21,6 +23,14 @@ export default async function AdminHomePage(): Promise<React.ReactElement> {
       select: { id: true, name: true, email: true, role: true, classGrade: true, createdAt: true },
     }),
   ]);
+
+  // Recent render errors (signed URL expiry, PDF parse failures, etc.)
+  const recentErrors = await prisma.auditLog.findMany({
+    where: { action: "BOOK_ERROR" },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: { id: true, createdAt: true, targetBookId: true, metadata: true },
+  });
 
   // Egress estimate (in-memory, resets on server restart)
   const dailyEgress = egressTracker.getDailyStats();
@@ -107,6 +117,44 @@ export default async function AdminHomePage(): Promise<React.ReactElement> {
           ))}
         </div>
       </section>
+
+      {/* Render error alert — surfaced when signed URLs expire or PDFs fail */}
+      {recentErrors.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-medium">Reader errors</h2>
+          <Card className="border-amber-200 dark:border-amber-800/30">
+            <CardContent className="p-4">
+              <p className="mb-2 text-sm text-amber-700 dark:text-amber-400">
+                {recentErrors.length} recent reader error{recentErrors.length === 1 ? "" : "s"} — may indicate expired links or file issues.
+              </p>
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                {recentErrors.map((e) => {
+                  let meta: { kind?: string; error?: string } | null = null;
+                  if (e.metadata) { try { meta = JSON.parse(e.metadata); } catch { /* ignore */ } }
+                  return (
+                    <li key={e.id} className="flex items-center gap-2">
+                      <span className="tabular-nums">
+                        {new Date(e.createdAt).toLocaleDateString()}
+                      </span>
+                      <span className="text-amber-600 dark:text-amber-400">
+                        {meta?.kind ?? "book"} error
+                      </span>
+                      <span className="truncate">
+                        {meta?.error ?? "unknown"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="mt-2">
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/admin/audit-log">View audit log</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-lg font-medium">Newest users</h2>

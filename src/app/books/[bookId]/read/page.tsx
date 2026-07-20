@@ -3,11 +3,10 @@ import dynamic from "next/dynamic";
 import { getSessionUser } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { AccessPolicy } from "@/lib/access";
-import { PdfReader } from "@/components/pdf-reader";
 
-// epub.js touches the DOM directly — load it on the client only.
-const EpubReader = dynamic(
-  () => import("@/components/epub-reader").then((m) => m.EpubReader),
+const ReaderWithRefresh = dynamic(
+  () =>
+    import("@/components/reader-with-refresh").then((m) => m.ReaderWithRefresh),
   { ssr: false }
 );
 
@@ -43,41 +42,46 @@ export default async function ReadBookPage({
 
   const { getSignedDownloadUrl } = await import("@/lib/r2");
 
+  let kind: "pdf" | "epub";
+  let url: string;
+  let initialPage = 1;
+  let initialCfi: string | null = null;
+
   if (book.pdfKey) {
-    const url = await getSignedDownloadUrl(book.pdfKey);
-    const initialPage = progress?.lastLocation
+    kind = "pdf";
+    url = await getSignedDownloadUrl(book.pdfKey);
+    initialPage = progress?.lastLocation
       ? Math.max(1, parseInt(progress.lastLocation, 10) || 1)
       : 1;
+  } else if (book.epubKey) {
+    kind = "epub";
+    url = await getSignedDownloadUrl(book.epubKey);
+    initialCfi = progress?.lastLocation ?? null;
+  } else {
     return (
-      <main className="flex h-screen flex-col">
-        <PdfReader
-          bookId={book.id}
-          url={url}
-          title={book.title}
-          initialPage={initialPage}
-        />
-      </main>
-    );
-  }
-  if (book.epubKey) {
-    const url = await getSignedDownloadUrl(book.epubKey);
-    const initialCfi = progress?.lastLocation ?? null;
-    return (
-      <main className="flex h-screen flex-col">
-        <EpubReader bookId={book.id} url={url} initialCfi={initialCfi} />
-      </main>
-    );
-  }
-  return (
-    <main className="flex min-h-screen items-center justify-center p-8 text-center text-sm text-muted-foreground">
-      <div>
-        This book doesn't have a readable file uploaded yet.
-        <div className="mt-4">
-          <a className="text-primary hover:underline" href={`/books/${book.id}`}>
-            Back to book
-          </a>
+      <main className="flex min-h-screen items-center justify-center p-8 text-center text-sm text-muted-foreground">
+        <div>
+          This book doesn&apos;t have a readable file uploaded yet.
+          <div className="mt-4">
+            <a className="text-primary hover:underline" href={`/books/${book.id}`}>
+              Back to book
+            </a>
+          </div>
         </div>
-      </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="flex h-screen flex-col">
+      <ReaderWithRefresh
+        bookId={book.id}
+        title={book.title}
+        kind={kind}
+        initialPage={initialPage}
+        initialCfi={initialCfi}
+        serverUrl={url}
+      />
     </main>
   );
 }
