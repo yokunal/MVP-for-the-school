@@ -18,9 +18,6 @@ import type {
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Minus, Plus } from "lucide-react";
 
-// Self-hosted worker (copied to public/ via postinstall script).
-pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-
 type Props = {
   bookId: string;
   url: string;
@@ -30,16 +27,37 @@ type Props = {
 
 type PageSize = { w: number; h: number };
 
+// ---------------------------------------------------------------------------
+// Adaptive performance settings
+// ---------------------------------------------------------------------------
+
 const SCALE_MIN = 0.25;
 const SCALE_MAX = 5;
 const SCALE_STEP = 0.1;
 const PROGRESS_DEBOUNCE_MS = 900;
-// Keep this many pages on each side of currentPage rendered; the rest have
-// placeholders but no canvas.
-const RENDER_WINDOW_BCK = 4;
-const RENDER_WINDOW_FWD = 8;
+
+/** Detect low-memory device (Chromebooks, budget tablets). */
+function isLowMemoryDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  // navigator.deviceMemory is non-standard but supported in Chrome/Chromium
+  return (navigator as any).deviceMemory !== undefined && (navigator as any).deviceMemory < 4;
+}
+
+/** Cap effective DPR so low-mem devices don't render 4× the pixels. */
+function getEffectiveDpr(): number {
+  const raw = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+  return isLowMemoryDevice() ? Math.min(raw, 1.5) : raw;
+}
+
+// Adaptive render window — fewer pages kept rendered on low-end devices.
+const RENDER_WINDOW_BCK = isLowMemoryDevice() ? 2 : 4;
+const RENDER_WINDOW_FWD = isLowMemoryDevice() ? 4 : 8;
+
 // Pad the intersection observer so off-screen-but-near pages also fire entries.
 const NEAR_VIEWPORT_FRACTION = 1.5;
+
+// Tracks whether the pdf.js web worker has been initialised (lazy, on first mount).
+let workerInitialised = false;
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
@@ -47,7 +65,7 @@ function clamp(n: number, lo: number, hi: number): number {
 
 function getDpr(): number {
   if (typeof window === "undefined") return 1;
-  return window.devicePixelRatio || 1;
+  return getEffectiveDpr();
 }
 
 export function PdfReader({
@@ -95,13 +113,21 @@ export function PdfReader({
     [scale, dpr]
   );
 
+  // -------- 0. Initialise pdf.js web worker (lazy, on first mount) --------
+  useEffect(() => {
+    if (!workerInitialised) {
+      workerInitialised = true;
+      pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+    }
+  }, []);
+
   // -------- 1. Load PDF + measure every page's intrinsic size --------
   useEffect(() => {
     let cancelled = false;
     let acquired: PDFDocumentProxy | null = null;
     (async () => {
       try {
-        const task = pdfjs.getDocument({ url });
+        const task = pdfjs.getDocument({ url, disableAutoFetch: true });
         const pdf = (await task.promise) as PDFDocumentProxy;
         if (cancelled) {
           await pdf.destroy();
