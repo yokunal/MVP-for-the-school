@@ -1,7 +1,9 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -17,13 +19,72 @@ import {
 import { inferKind, validateMagicBytes } from "@/lib/uploads";
 
 // ---------------------------------------------------------------------------
-// Storage client. Tries Cloudflare R2 (S3-compatible) in production and
-// falls back to a local-disk store when R2 isn't configured.
+// Signed-download-URL cache.
 //
-// All access to file storage goes through this module. The DB stores KEYS
-// (e.g. "books/pdf/abc.pdf") — never URLs — so the underlying store can
-// be swapped without rewriting data.
+// Without a cache the sign route generates a *new* signed URL on every
+// request.  Each URL is unique, which defeats Cloudflare's edge cache
+// (every request appears as a cache miss).  By caching the signed URL
+// for most of its TTL we return the same URL for the same key + TTL
+// combo, allowing Cloudflare's CDN to serve repeat requests from cache
+// instead of fetching from R2's paid egress pipe.
 // ---------------------------------------------------------------------------
+
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+
+/** Interval handle for periodic cache cleanup (lazy-init). */
+let cacheCleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+function startCacheCleanup(): void {
+  if (cacheCleanupTimer) return;
+  cacheCleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of signedUrlCache) {
+      if (entry.expiresAt <= now) signedUrlCache.delete(key);
+    }
+  }, 60_000).unref();
+}
+
+/**
+ * Generate a signed download URL, cached so the same key+TTL combo
+ * returns the same URL until near expiry.
+ *
+ * Cache TTL = requested TTL minus 120 second buffer, so the URL is
+ * refreshed before it actually expires on the R2 side.
+ */
+export async function getSignedDownloadUrlCached(
+  key: string,
+  ttlSeconds?: number
+): Promise<{ url: string; expiresAt: string }> {
+  const ttl = ttlSeconds ?? getR2DefaultTtl();
+  const cacheKey = `${key}:${ttl}`;
+  const now = Date.now();
+
+  const cached = signedUrlCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return { url: cached.url, expiresAt: new Date(cached.expiresAt).toISOString() };
+  }
+
+  // Cache miss — generate fresh URL
+  const url = await getSignedDownloadUrl(key, ttl);
+  // Cache for TTL minus 2 minutes (safety margin)
+  const cacheTtl = Math.max(60, (ttl - 120) * 1000);
+  const expiresAt = now + cacheTtl;
+
+  signedUrlCache.set(cacheKey, { url, expiresAt: now + ttl * 1000 });
+  startCacheCleanup();
+
+  return { url, expiresAt: new Date(expiresAt).toISOString() };
+}
+
+/** Number of entries currently in the signed-URL cache (for monitoring). */
+export function signedUrlCacheSize(): number {
+  return signedUrlCache.size;
+}
+
+/** Clear the signed-URL cache (useful in tests / admin panel). */
+export function clearSignedUrlCache(): void {
+  signedUrlCache.clear();
+}
 
 let cachedClient: S3Client | null = null;
 
@@ -123,8 +184,42 @@ export async function checkR2Health(): Promise<boolean> {
 export { LOCAL_UPLOADS_DIR };
 
 /**
- * Delete an object from storage (R2 or local). No-op if key is null/empty.
+ * Set Cache-Control header on an existing R2 object by copying it onto itself.
+ * Preserves existing ContentType and any user metadata.  Enables Cloudflare's
+ * edge cache to serve repeat requests instead of fetching from R2 egress.
+ *
+ * In local mode this is a no-op (local files aren't served via CDN).
  */
+export async function setObjectCacheControl(
+  key: string,
+  cacheControl: string
+): Promise<void> {
+  if (isLocalMode()) return;
+  const bucket = getR2Bucket();
+
+  // Read current object metadata to preserve ContentType on replace
+  let contentType: string | undefined;
+  try {
+    const head = await getClient().send(
+      new HeadObjectCommand({ Bucket: bucket, Key: key })
+    );
+    contentType = head.ContentType;
+  } catch {
+    // Object may not exist yet — caller should handle
+    return;
+  }
+
+  await getClient().send(
+    new CopyObjectCommand({
+      Bucket: bucket,
+      CopySource: `${bucket}/${key}`,
+      Key: key,
+      ContentType: contentType,
+      CacheControl: cacheControl,
+      MetadataDirective: "REPLACE",
+    })
+  );
+}
 export async function deleteObject(key: string | null | undefined): Promise<void> {
   if (!key) return;
   if (isLocalMode()) {

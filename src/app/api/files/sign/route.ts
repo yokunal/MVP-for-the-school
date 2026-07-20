@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSignedDownloadUrl } from "@/lib/r2";
+import { getSignedDownloadUrlCached, getR2DefaultTtl, isLocalMode } from "@/lib/r2";
 import { getSessionUser } from "@/lib/session";
 import { AccessPolicy } from "@/lib/access";
+import { egressTracker } from "@/lib/egress-tracker";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -87,8 +88,23 @@ export async function GET(req: NextRequest): Promise<NextResponse<SignResponse>>
     );
   }
 
-  const url = await getSignedDownloadUrl(key);
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  // Use cached signed URL so Cloudflare's edge cache sees stable URLs
+  // rather than a new unique URL on every request.
+  const ttl = getR2DefaultTtl();
+  const { url, expiresAt } = await getSignedDownloadUrlCached(key, ttl);
 
-  return NextResponse.json({ url, expiresAt, kind: kindParam });
+  // Track egress for cost visibility (skip in local dev mode)
+  if (!isLocalMode()) {
+    egressTracker.record(bookId, kindParam);
+  }
+
+  return NextResponse.json(
+    { url, expiresAt, kind: kindParam },
+    {
+      headers: {
+        // Allow Cloudflare/CDN edge to cache this response for half the TTL
+        "Cache-Control": `public, s-maxage=${Math.floor(ttl / 2)}, max-age=0`,
+      },
+    }
+  );
 }

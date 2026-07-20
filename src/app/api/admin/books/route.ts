@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { isLibraryEnum } from "@/lib/csv";
-import { validateStoredFileSignature } from "@/lib/r2";
+import { setObjectCacheControl, validateStoredFileSignature } from "@/lib/r2";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -78,6 +78,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         uploadedById: user.id,
       },
     });
+
+    // Best-effort: set Cache-Control on R2 objects so Cloudflare edge
+    // caches them.  Non-blocking — the book was already created.
+    const CACHE_CONTROL = "public, max-age=86400, s-maxage=86400, stale-while-revalidate=86400";
+    for (const k of [pdfKey, epubKey, parsed.data.coverImageKey].filter(Boolean) as string[]) {
+      setObjectCacheControl(k, CACHE_CONTROL).catch(() => {
+        /* non-critical — cache headers are a performance optimisation */
+      });
+    }
+
     return NextResponse.json({ id: book.id });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

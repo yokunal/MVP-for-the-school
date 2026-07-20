@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ALL_LIBRARIES, LIBRARY_LABELS } from "@/types";
 import { Plus, Upload, Users } from "lucide-react";
+import { egressTracker } from "@/lib/egress-tracker";
 
 export default async function AdminHomePage(): Promise<React.ReactElement> {
   const [bookCount, userCount, byLibrary, recentUsers] = await Promise.all([
@@ -20,6 +21,11 @@ export default async function AdminHomePage(): Promise<React.ReactElement> {
       select: { id: true, name: true, email: true, role: true, classGrade: true, createdAt: true },
     }),
   ]);
+
+  // Egress estimate (in-memory, resets on server restart)
+  const dailyEgress = egressTracker.getDailyStats();
+  const monthlyBytes = egressTracker.getEstimatedEgress(30);
+  const monthlyCost = egressTracker.estimateMonthlyCost(9);
 
   const libMap = new Map(byLibrary.map((r) => [r.library, r._count]));
 
@@ -65,6 +71,21 @@ export default async function AdminHomePage(): Promise<React.ReactElement> {
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-semibold tabular-nums">{userCount}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Egress today
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-semibold tabular-nums">
+              {egressTracker.formatBytes(dailyEgress.totalEstimatedBytes)}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              ~${monthlyCost.toFixed(2)}/mo at $0.09/GB
+            </p>
           </CardContent>
         </Card>
       </section>
