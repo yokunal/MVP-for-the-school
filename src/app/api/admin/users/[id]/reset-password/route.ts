@@ -30,6 +30,12 @@ export async function POST(
   if (!target) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
+  if (!target.isActive) {
+    return NextResponse.json(
+      { error: "Cannot reset password for a deactivated user. Reactivate first." },
+      { status: 400 }
+    );
+  }
 
   const tempPassword = CsvUserParser.generateTempPassword();
   await prisma.user.update({
