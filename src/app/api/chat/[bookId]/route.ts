@@ -28,6 +28,19 @@ const MAX_TOKENS = 600;
  * book's stored metadata ONLY — title, author, subject, synopsis. The model
  * is told up front that it has not read the book, so questions that the
  * metadata doesn't answer will be acknowledged as such.
+ *
+ * TODO: Full-text RAG pipeline (when content-scoped Q&A is needed):
+ *   - Extract text from PDF (pdf.js textContent or external OCR) and EPUB
+ *     (extract HTML from OPF/manifest) during book upload.
+ *   - Chunk extracted text (512 tokens, 128-token overlap), embed via a
+ *     sentence-transformer model or Anthropic embeddings API, store vectors
+ *     in pgvector or a lightweight vector store.
+ *   - At query time: embed user question, retrieve top-3 chunks by cosine
+ *     similarity, inject as context in the system prompt.
+ *   - Constraints: EPUBS are already structured HTML so chunking is natural;
+ *     PDFs need proper text-layer extraction (not all PDFs have one).
+ *   - Cost: embedding per-book content is a one-time cost per upload; query-
+ *     time embedding + LLM tokens add ~$0.001-0.003 per question.
  */
 export async function POST(
   req: NextRequest,
@@ -139,11 +152,19 @@ function buildSystemPrompt(book: {
   return [
     `You are a reading companion for one specific book in a school digital library.`,
     ``,
-    `Your sole source of information is the book's metadata below. You have NOT`,
-    `read the book — you only know what is written here. If the user asks`,
-    `something the metadata doesn't cover (plot points, characters, themes,`,
-    `chapter-level detail, quotes, page numbers, illustrations, etc.), say so`,
-    `clearly and briefly. Suggest they read the relevant section.`,
+    `CAPABILITIES:`,
+    `You can ONLY answer questions about these metadata fields:`,
+    `- The book's title, author, subject area, and synopsis.`,
+    `- You can discuss the subject generally (e.g. "what is algebra?").`,
+    ``,
+    `LIMITATIONS (you must follow these):`,
+    `- You have NOT read the book's content — no access to plot, characters,`,
+    `  themes, chapters, quotes, page numbers, or illustrations.`,
+    `- If the user asks about specific content inside the book, say: "I don't`,
+    `  have access to this book's full text yet. Try searching within the PDF`,
+    `  reader for what you need."`,
+    `- Never invent content, page references, quotes, or external sources.`,
+    `- Keep replies under ~120 words. Be concise.`,
     ``,
     `--- book metadata ---`,
     `Title: ${book.title}`,
@@ -151,10 +172,5 @@ function buildSystemPrompt(book: {
     `Subject: ${book.subject}`,
     `Synopsis: ${book.synopsis}`,
     `--- end metadata ---`,
-    ``,
-    `Style rules:`,
-    `- Be concise. Keep replies under ~120 words unless a list is clearly useful.`,
-    `- Quote the metadata fields when relevant so the student can verify.`,
-    `- Never invent content, page references, or external sources.`,
   ].join("\n");
 }
