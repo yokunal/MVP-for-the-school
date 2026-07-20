@@ -66,6 +66,7 @@ export function BookForm({
       : "pdf"
   );
   const [cover, setCover] = useState<File | null>(null);
+  const [removeCover, setRemoveCover] = useState(false);
 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [author, setAuthor] = useState(initial?.author ?? "");
@@ -241,6 +242,7 @@ export function BookForm({
               synopsis,
               library,
               ...(coverImageKey ? { coverImageKey } : {}),
+              ...(removeCover && !coverImageKey ? { coverImageKey: null } : {}),
             }),
           }
         );
@@ -427,12 +429,31 @@ export function BookForm({
           <Input
             type="file"
             accept="image/png,image/jpeg,image/webp,image/gif"
-            onChange={(e) => setCover(e.target.files?.[0] ?? null)}
+            onChange={(e) => {
+              setCover(e.target.files?.[0] ?? null);
+              if (e.target.files?.[0]) setRemoveCover(false); // new file replaces cover
+            }}
           />
           {cover && (
             <p className="text-xs text-muted-foreground">
               {cover.name} ({(cover.size / 1024 / 1024).toFixed(1)} MB)
             </p>
+          )}
+          {mode === "edit" && initial?.hasCover && !cover && (
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRemoveCover((r) => !r)}
+                className={removeCover ? "border-destructive text-destructive" : ""}
+              >
+                {removeCover ? "Cancel removal" : "Remove cover"}
+              </Button>
+              {removeCover && (
+                <span className="text-xs text-destructive">Cover will be removed on save.</span>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
