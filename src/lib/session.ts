@@ -35,13 +35,3 @@ export async function requireAdmin() {
 }
 
 /** Throws/redirects if user cannot access admin (used by middleware too). */
-export async function requireAdminApi() {
-  const user = await getSessionUser();
-  if (!user) {
-    return { error: { status: 401, message: "Not signed in" } };
-  }
-  if (user.role !== "ADMIN") {
-    return { error: { status: 403, message: "Admin only" } };
-  }
-  return { user };
-}
