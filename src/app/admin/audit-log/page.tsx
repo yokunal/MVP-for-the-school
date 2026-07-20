@@ -59,6 +59,27 @@ export default async function AuditLogPage({
     prisma.auditLog.count({ where }),
   ]);
 
+  // Resolve actor names and target names from User/Book tables.
+  const userIds = new Set<string>();
+  const bookIds = new Set<string>();
+  for (const e of entries) {
+    if (e.actorId) userIds.add(e.actorId);
+    if (e.targetUserId) userIds.add(e.targetUserId);
+    if (e.targetBookId) bookIds.add(e.targetBookId);
+  }
+  const [users, books] = await Promise.all([
+    prisma.user.findMany({
+      where: { id: { in: [...userIds] } },
+      select: { id: true, name: true },
+    }),
+    prisma.book.findMany({
+      where: { id: { in: [...bookIds] } },
+      select: { id: true, title: true },
+    }),
+  ]);
+  const userNameMap = new Map(users.map((u) => [u.id, u.name]));
+  const bookTitleMap = new Map(books.map((b) => [b.id, b.title]));
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
@@ -114,7 +135,10 @@ export default async function AuditLogPage({
                       {e.createdAt.toLocaleString()}
                     </TableCell>
                     <TableCell className="text-xs">
-                      <div>{e.actorEmail}</div>
+                      <div>{userNameMap.get(e.actorId) ?? e.actorEmail}</div>
+                      {userNameMap.has(e.actorId) && (
+                        <div className="text-muted-foreground">{e.actorEmail}</div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge
@@ -127,8 +151,9 @@ export default async function AuditLogPage({
                       </Badge>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {e.targetUserId ? e.targetUserId.slice(0, 8) + "…" : ""}
-                      {e.targetBookId ? e.targetBookId.slice(0, 8) + "…" : ""}
+                      {e.targetUserId ? (userNameMap.get(e.targetUserId) ?? `${e.targetUserId.slice(0, 8)}…`) : ""}
+                      {e.targetUserId && e.targetBookId ? ", " : ""}
+                      {e.targetBookId ? (bookTitleMap.get(e.targetBookId) ?? `${e.targetBookId.slice(0, 8)}…`) : ""}
                     </TableCell>
                     <TableCell className="max-w-xs truncate text-xs text-muted-foreground">
                       {e.metadata ?? ""}
