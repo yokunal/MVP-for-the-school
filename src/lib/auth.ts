@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { loginRateLimiter, ipWideRateLimiter, extractIp } from "@/lib/rate-limit";
 import type { Role } from "@/types";
+import { ROLE_LABELS } from "@/types";
 
 // In-memory cache for JWT callback DB checks.
 // Prevents DB round-trip on every request while catching deactivation/role
@@ -57,6 +58,21 @@ export const authOptions: NextAuthOptions = {
           loginRateLimiter.recordFailure(rateKey);
           ipWideRateLimiter.recordFailure(ip);
           return null;
+        }
+
+        // Role match check — server-side enforced, can't be bypassed by client.
+        const creds = credentials as Record<string, string>;
+        const expectedRole = creds.expectedRole;
+        if (!expectedRole) {
+          // No expectedRole sent — reject. All login flows must specify role.
+          return null;
+        }
+        if (user.role !== expectedRole) {
+          const roleLabel = ROLE_LABELS[user.role as Role] || user.role;
+          const expectedLabel = ROLE_LABELS[expectedRole as Role] || expectedRole;
+          throw new Error(
+            `This account is not a ${expectedLabel} account. Please use the ${roleLabel} login.`
+          );
         }
 
         // Success — clear any previous failures for this key.
