@@ -15,7 +15,11 @@ import {
 } from "@/components/ui/card";
 import { BookOpen } from "lucide-react";
 
-export function LoginForm(): React.ReactElement {
+export function LoginForm({
+  expectedRole,
+}: {
+  expectedRole?: string;
+}): React.ReactElement {
   const router = useRouter();
   const params = useSearchParams();
   const callbackUrl = params.get("callbackUrl") || "/dashboard";
@@ -32,12 +36,17 @@ export function LoginForm(): React.ReactElement {
     const res = await signIn("credentials", {
       email,
       password,
+      expectedRole,
       redirect: false,
       callbackUrl,
     });
     setBusy(false);
     if (!res || res.error) {
-      setError("Email or password is incorrect.");
+      if (res?.error?.includes("not a")) {
+        setError(res.error);
+      } else {
+        setError("Email or password is incorrect.");
+      }
       return;
     }
     router.push(callbackUrl);
