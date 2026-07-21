@@ -111,14 +111,15 @@ export default async function AuditLogPage({
 
       <Card>
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Time</TableHead>
-                <TableHead>Actor</TableHead>
+                <TableHead className="hidden sm:table-cell">Actor</TableHead>
                 <TableHead>Action</TableHead>
-                <TableHead>Target</TableHead>
-                <TableHead>Details</TableHead>
+                <TableHead className="hidden md:table-cell">Target</TableHead>
+                <TableHead className="hidden lg:table-cell">Details</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -134,7 +135,7 @@ export default async function AuditLogPage({
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                       {e.createdAt.toLocaleString()}
                     </TableCell>
-                    <TableCell className="text-xs">
+                    <TableCell className="hidden text-xs sm:table-cell">
                       <div>{userNameMap.get(e.actorId) ?? e.actorEmail}</div>
                       {userNameMap.has(e.actorId) && (
                         <div className="text-muted-foreground">{e.actorEmail}</div>
@@ -150,12 +151,12 @@ export default async function AuditLogPage({
                         {ACTION_LABELS[e.action] ?? e.action}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="hidden text-xs text-muted-foreground md:table-cell">
                       {e.targetUserId ? (userNameMap.get(e.targetUserId) ?? `${e.targetUserId.slice(0, 8)}…`) : ""}
                       {e.targetUserId && e.targetBookId ? ", " : ""}
                       {e.targetBookId ? (bookTitleMap.get(e.targetBookId) ?? `${e.targetBookId.slice(0, 8)}…`) : ""}
                     </TableCell>
-                    <TableCell className="max-w-xs truncate text-xs text-muted-foreground">
+                    <TableCell className="hidden max-w-xs truncate text-xs text-muted-foreground lg:table-cell">
                       {e.metadata ?? ""}
                     </TableCell>
                   </TableRow>
@@ -163,6 +164,7 @@ export default async function AuditLogPage({
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 

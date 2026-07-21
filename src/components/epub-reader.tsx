@@ -108,14 +108,15 @@ export function EpubReader({ bookId, url, initialCfi, onError }: Props): React.R
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
-        <div className="flex items-center gap-2 text-sm">
-          <BookOpen className="h-4 w-4" /> EPUB
+      <div className="flex flex-wrap items-center justify-between gap-1 border-b bg-background/95 px-2 py-1.5 backdrop-blur sm:gap-2 sm:px-3 sm:py-2">
+        <div className="flex items-center gap-1 text-sm sm:gap-2">
+          <BookOpen className="h-4 w-4" /> <span className="hidden sm:inline">EPUB</span>
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="icon"
+            className="h-10 w-10"
             onClick={() => renditionRef.current?.prev?.()}
             aria-label="Previous"
           >
@@ -124,6 +125,7 @@ export function EpubReader({ bookId, url, initialCfi, onError }: Props): React.R
           <Button
             variant="ghost"
             size="icon"
+            className="h-10 w-10"
             onClick={() => renditionRef.current?.next?.()}
             aria-label="Next"
           >
@@ -133,15 +135,17 @@ export function EpubReader({ bookId, url, initialCfi, onError }: Props): React.R
           <Button
             variant="ghost"
             size="icon"
+            className="h-10 w-10"
             onClick={() => setFontSize((v) => Math.max(70, v - 10))}
             aria-label="Smaller text"
           >
             <Minus className="h-4 w-4" />
           </Button>
-          <span className="w-12 text-center text-xs tabular-nums">{fontSize}%</span>
+          <span className="w-10 text-center text-xs tabular-nums sm:w-12">{fontSize}%</span>
           <Button
             variant="ghost"
             size="icon"
+            className="h-10 w-10"
             onClick={() => setFontSize((v) => Math.min(200, v + 10))}
             aria-label="Larger text"
           >
@@ -149,9 +153,10 @@ export function EpubReader({ bookId, url, initialCfi, onError }: Props): React.R
           </Button>
           <a
             href={`/books/${bookId}`}
-            className="ml-3 text-xs text-muted-foreground hover:underline"
+            className="text-xs text-muted-foreground hover:underline sm:ml-3"
           >
-            Back to book
+            <span className="hidden sm:inline">Back to book</span>
+            <ChevronLeft className="inline h-4 w-4 sm:hidden" />
           </a>
         </div>
       </div>

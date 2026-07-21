@@ -327,6 +327,7 @@ export function BulkBookUpload(): React.ReactElement {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="max-h-96 overflow-auto rounded-md border">
+              <div className="min-w-[500px]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -386,6 +387,7 @@ export function BulkBookUpload(): React.ReactElement {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
 
             {error && (

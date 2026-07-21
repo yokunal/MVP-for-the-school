@@ -89,15 +89,16 @@ export default async function AdminBooksPage({
 
       <Card>
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
-                <TableHead>Author</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Library</TableHead>
-                <TableHead>Formats</TableHead>
-                <TableHead>Uploaded by</TableHead>
+                <TableHead className="hidden sm:table-cell">Author</TableHead>
+                <TableHead className="hidden md:table-cell">Subject</TableHead>
+                <TableHead className="hidden md:table-cell">Library</TableHead>
+                <TableHead className="hidden lg:table-cell">Formats</TableHead>
+                <TableHead className="hidden lg:table-cell">Uploaded by</TableHead>
                 <TableHead className="w-32 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -112,18 +113,18 @@ export default async function AdminBooksPage({
                 books.map((b) => (
                   <TableRow key={b.id}>
                     <TableCell className="font-medium">{b.title}</TableCell>
-                    <TableCell>{b.author}</TableCell>
-                    <TableCell>{b.subject}</TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">{b.author}</TableCell>
+                    <TableCell className="hidden md:table-cell">{b.subject}</TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <Badge variant="outline">{LIBRARY_LABELS[b.library as LibEnum]}</Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       <div className="flex gap-1">
                         {b.pdfKey && <Badge>PDF</Badge>}
                         {b.epubKey && <Badge>EPUB</Badge>}
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
                       {b.uploadedBy.name}
                     </TableCell>
                     <TableCell className="text-right">
@@ -141,6 +142,7 @@ export default async function AdminBooksPage({
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </main>

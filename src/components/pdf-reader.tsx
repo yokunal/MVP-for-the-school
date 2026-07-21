@@ -753,7 +753,7 @@ function Toolbar({
   }, [currentPage, jumpFocused]);
 
   return (
-    <div className="sticky top-0 z-30 flex flex-wrap items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
+    <div className="sticky top-0 z-30 flex flex-wrap items-center gap-1 border-b bg-background/95 px-2 py-1.5 backdrop-blur sm:gap-2 sm:px-3 sm:py-2">
       <Button asChild variant="ghost" size="sm">
         <Link href={`/books/${bookId}`}>
           <ArrowLeft className="h-4 w-4" />
@@ -769,6 +769,7 @@ function Toolbar({
         <Button
           variant="ghost"
           size="icon"
+          className="h-10 w-10"
           onClick={onZoomOut}
           aria-label="Zoom out"
           disabled={atMin}
@@ -776,7 +777,7 @@ function Toolbar({
           <Minus className="h-4 w-4" />
         </Button>
         <span
-          className="w-14 text-center text-xs tabular-nums"
+          className="w-10 text-center text-xs tabular-nums sm:w-14"
           aria-label="Zoom level"
         >
           {Math.round(scale * 100)}%
@@ -784,6 +785,7 @@ function Toolbar({
         <Button
           variant="ghost"
           size="icon"
+          className="h-10 w-10"
           onClick={onZoomIn}
           aria-label="Zoom in"
           disabled={atMax}
@@ -827,7 +829,7 @@ function Toolbar({
           min={1}
           max={numPages || undefined}
           aria-label="Jump to page"
-          className="h-9 w-16 rounded-md border border-input bg-background px-2 py-1 text-center text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+          className="h-9 w-12 rounded-md border border-input bg-background px-1 py-1 text-center text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 sm:w-16 sm:px-2"
         />
         <span className="text-xs text-muted-foreground">
           / {numPages || "—"}

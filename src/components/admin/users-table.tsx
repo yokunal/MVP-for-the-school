@@ -88,6 +88,7 @@ export function UsersTable({
 
   return (
     <>
+      <div className="overflow-x-auto">
       <Table>
       <TableHeader>
         <TableRow>
@@ -157,6 +158,7 @@ export function UsersTable({
         )}
       </TableBody>
     </Table>
+      </div>
 
     {/* Reset password confirmation dialog */}
     <Dialog open={resetTarget !== null} onOpenChange={(o) => { if (!o) { setResetTarget(null); setResetResult(null); } }}>

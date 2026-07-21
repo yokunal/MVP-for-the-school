@@ -177,6 +177,7 @@ export function CsvImport(): React.ReactElement {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="max-h-96 overflow-auto rounded-md border">
+              <div className="min-w-[600px]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -216,6 +217,7 @@ export function CsvImport(): React.ReactElement {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
             <div className="flex justify-end">
               <Button onClick={commit} disabled={busyCommit || stats.ok === 0}>
@@ -239,6 +241,7 @@ export function CsvImport(): React.ReactElement {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="max-h-96 overflow-auto rounded-md border">
+              <div className="min-w-[600px]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -276,6 +279,7 @@ export function CsvImport(): React.ReactElement {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
             {(commitSummary?.created ?? 0) > 0 && (
               <div className="flex justify-end">
