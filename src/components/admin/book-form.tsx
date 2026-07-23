@@ -450,12 +450,12 @@ export function BookForm({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="subject">Subject</Label>
+            <Label htmlFor="subject">{library === "GENERAL" ? "Genre" : "Subject"}</Label>
             <Input
               id="subject"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="Math, English Literature, Physics…"
+              placeholder={library === "GENERAL" ? "Fantasy, Science Fiction, History…" : "Math, English Literature, Physics…"}
               required
             />
           </div>

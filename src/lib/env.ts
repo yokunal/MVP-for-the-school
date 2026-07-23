@@ -28,8 +28,8 @@ const serverSchema = z.object({
     .transform((v) => (v ? parseInt(v, 10) : 300))
     .pipe(z.number().int().positive()),
 
-  // Anthropic — used in step 7; optional in step 1
-  ANTHROPIC_API_KEY: z.string().optional(),
+  // Google Gemini — used for AI book chat
+  GEMINI_API_KEY: z.string().optional(),
 
   // Seed bootstrap admin — all-or-nothing (see prisma/seed.ts)
   SEED_ADMIN_EMAIL: z.string().optional(),
